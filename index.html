@@ -1561,9 +1561,9 @@ const grassMat=new THREE.ShaderMaterial({
       vec2 windDir=normalize(vec2(0.86,0.51));
       float wAmt=uWind*0.6;
       /* 阵风包络：长波缓摆带短波颤叶，整片草连成流动草浪 */
-      float sway=sin(uTime*1.10+aData.y+aOffset.x*0.40+aOffset.y*0.30)*0.075
-                +sin(uTime*0.70-(aOffset.x+aOffset.y)*0.25)*0.060
-                +sin(uTime*2.30+aData.y*2.0)*0.020;
+      float sway=sin(uTime*1.10+aData.y+aOffset.x*0.40+aOffset.y*0.30)*0.070
+                +sin(uTime*0.70-(aOffset.x+aOffset.y)*0.25)*0.055
+                +sin(uTime*2.30+aData.y*2.0)*0.013;
       /* 阵风起伏：风来时成片草叶顺风压低，间隙回弹 */
       float gust=0.5+0.5*sin(uTime*0.45+dot(aOffset,windDir)*1.15);
       vec2 bendDir=vec2(sin(aData.w),cos(aData.w));
@@ -1576,10 +1576,17 @@ const grassMat=new THREE.ShaderMaterial({
       /* 主风向倒伏：沿同一股风倾斜，阵风来时压得更低 */
       world.xz+=windDir*(0.12+0.13*gust)*wAmt*y*y;
       world.xz+=normalize(aOffset)*rim*0.10*y*y;
-      /* 整片草地的行波浪：一道风从盘中向四周推过去 */
-      float wave=dot(aOffset,windDir)*2.6-uTime*(0.90+uWinter*0.50)+aData.y*0.45;
-      float crest=pow(max(sin(wave),0.0),2.0);
-      world.xz+=windDir*crest*0.26*y*y*wAmt;
+      /* 呼吸律动：整片草浪一张一弛，慢周期起伏 */
+      float breathe=0.72+0.28*sin(uTime*0.55);
+      /* 两道交叠的行进草浪：长波顺风推过去，短波斜向回卷，形成滚动律动 */
+      vec2 crossDir=vec2(-windDir.y,windDir.x);
+      float w1=dot(aOffset,windDir)*2.2-uTime*(0.85+uWinter*0.45)+aData.y*0.40;
+      float w2=dot(aOffset,crossDir)*3.4-uTime*1.25+aData.y*1.10;
+      float swell=sin(w1)*0.7+sin(w2)*0.3;
+      world.xz+=windDir*swell*0.22*y*y*wAmt*breathe;
+      world.xz+=crossDir*sin(w2)*0.10*y*y*wAmt*breathe;
+      /* 随浪起起伏伏的竖向呼吸 */
+      world.y+=swell*0.05*y*breathe;
       vec2 cb=catBend(aOffset,y);
       world.xz+=cb*0.62;
       world.y*=1.0-min(0.45,length(cb)*1.0);
