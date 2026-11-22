@@ -375,7 +375,8 @@ const rim=new THREE.DirectionalLight(0x6b7fbf,0.4);rim.position.set(-14,8,-10);s
 
 /* ===== 自写 Bloom 后期：场景离屏 → 亮阈提取 → 可分离高斯模糊 → 加色合成 ===== */
 const _rtOpt={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,depthBuffer:true};
-const sceneRT=new THREE.WebGLRenderTarget(innerWidth,innerHeight,_rtOpt);
+const _rtPr=renderer.getPixelRatio();
+const sceneRT=new THREE.WebGLRenderTarget(Math.floor(innerWidth*_rtPr),Math.floor(innerHeight*_rtPr),_rtOpt);
 sceneRT.samples=(!IS_MOBILE||QLEVEL==='high')?4:2;
 const _bloomHalf=IS_MOBILE&&QLEVEL!=='high';
 const _bw=_bloomHalf?Math.ceil(innerWidth/2):innerWidth,_bh=_bloomHalf?Math.ceil(innerHeight/2):innerHeight;
@@ -398,7 +399,7 @@ const compMat=_postMat(
 `uniform sampler2D tBase;uniform sampler2D tBloom;uniform float strength;varying vec2 vUv;
 void main(){vec3 base=texture2D(tBase,vUv).rgb;vec3 bloom=texture2D(tBloom,vUv).rgb;vec3 c=base+bloom*strength;c=pow(max(c,vec3(0.0)),vec3(1.0/2.2));gl_FragColor=vec4(c,1.0);}`,
 {tBase:{value:null},tBloom:{value:null},strength:{value:0.35}});
-function _resizeRT(){const half=IS_MOBILE&&QLEVEL!=='high';const bw=half?Math.ceil(innerWidth/2):innerWidth,bh=half?Math.ceil(innerHeight/2):innerHeight;sceneRT.setSize(innerWidth,innerHeight);bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);}
+function _resizeRT(){const pr=renderer.getPixelRatio();const w=Math.floor(innerWidth*pr),h=Math.floor(innerHeight*pr);const half=IS_MOBILE&&QLEVEL!=='high';const bw=half?Math.ceil(w/2):w,bh=half?Math.ceil(h/2):h;sceneRT.setSize(w,h);bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);}
 
 /* ===== 星空：程序化银河着色器 + 闪烁前景星 ===== */
 /* 银道面法线：让银河带斜贯轮盘后方的天空 */
