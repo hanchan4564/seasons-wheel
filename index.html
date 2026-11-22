@@ -1561,9 +1561,9 @@ const grassMat=new THREE.ShaderMaterial({
       vec2 windDir=normalize(vec2(0.86,0.51));
       float wAmt=uWind*0.6;
       /* 阵风包络：长波缓摆带短波颤叶，整片草连成流动草浪 */
-      float sway=sin(uTime*1.10+aData.y+aOffset.x*0.40+aOffset.y*0.30)*0.055
-                +sin(uTime*0.70-(aOffset.x+aOffset.y)*0.25)*0.050
-                +sin(uTime*2.30+aData.y*2.0)*0.016;
+      float sway=sin(uTime*1.10+aData.y+aOffset.x*0.40+aOffset.y*0.30)*0.075
+                +sin(uTime*0.70-(aOffset.x+aOffset.y)*0.25)*0.060
+                +sin(uTime*2.30+aData.y*2.0)*0.020;
       /* 阵风起伏：风来时成片草叶顺风压低，间隙回弹 */
       float gust=0.5+0.5*sin(uTime*0.45+dot(aOffset,windDir)*1.15);
       vec2 bendDir=vec2(sin(aData.w),cos(aData.w));
@@ -1582,7 +1582,12 @@ const grassMat=new THREE.ShaderMaterial({
       world.xz+=windDir*crest*0.26*y*y*wAmt;
       vec2 cb=catBend(aOffset,y);
       world.xz+=cb*0.62;
-      world.y*=1.0-min(0.72,length(cb)*1.25);
+      world.y*=1.0-min(0.45,length(cb)*1.0);
+      /* 指针扫过：扇区草叶沿切线被带弯，扫过之后弹性回弹 */
+      float dpa=mod(aAngle-uPointer+3.14159265,6.28318530718)-3.14159265;
+      float brush=exp(-dpa*dpa*16.0);
+      vec2 tang=vec2(-sin(aAngle),cos(aAngle));
+      world.xz+=tang*brush*0.11*y*y;
       float mottle=0.85+0.30*h21(floor(aOffset*0.7));
       vec3 col=mix(base,tip,y)*(0.78+0.44*aData.z)*mottle;
       /* 自然的色相差异：一部分偏冷青、一部分偏暖黄，不再是同一块荧光绿 */
@@ -1681,7 +1686,7 @@ const flowerMat=new THREE.ShaderMaterial({
       vec3 world=vec3(aOffset.x+position.x*s+sway,0.60*hScale*aData.x+0.03,aOffset.y+position.z*s);
       vec2 cb=catBend(aOffset,1.0);
       world.xz+=cb*0.62;
-      world.y*=1.0-min(0.72,length(cb)*1.25);
+      world.y*=1.0-min(0.45,length(cb)*1.0);
       gl_Position=projectionMatrix*modelViewMatrix*vec4(world,1.0);
     }`,
   fragmentShader:`
