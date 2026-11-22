@@ -2611,18 +2611,26 @@ function localF(x,z,p){
 /* 贴图猫：sit/crouch/leap 三帧随动作循环切换，呼吸/跟随/点击动作保留 */
 function makeCatSprite(frames){
   const texs={};
-  for(const k in frames){
-    const t=new THREE.TextureLoader().load(frames[k]);
-    t.encoding=THREE.sRGBEncoding;t.minFilter=THREE.LinearFilter;t.generateMipmaps=false;
-    texs[k]=t;
-  }
-  const mat=new THREE.SpriteMaterial({map:texs.sit,transparent:true,depthWrite:false});
+  const t0=new THREE.TextureLoader().load(frames.sit);
+  t0.encoding=THREE.sRGBEncoding;t0.minFilter=THREE.LinearFilter;t0.generateMipmaps=false;
+  texs.sit=t0;
+  const mat=new THREE.SpriteMaterial({map:t0,transparent:true,depthWrite:false});
   mat.fog=false; /* 猫不受远景雾影响，避免拉远被藏青雾压灰压黑 */
   const sp=new THREE.Sprite(mat);
   sp.center.set(0.5,0.125);
   let pose='sit';
+  for(const k in frames){
+    if(k==='sit')continue;
+    const holder={ready:false,tex:null};
+    texs[k]=holder;
+    new THREE.TextureLoader().load(frames[k],t=>{
+      t.encoding=THREE.sRGBEncoding;t.minFilter=THREE.LinearFilter;t.generateMipmaps=false;
+      holder.tex=t;holder.ready=true;
+      if(pose===k){mat.map=t;mat.needsUpdate=true;}
+    });
+  }
   return {sprite:sp,
-    setPose(name){ if(pose===name)return; pose=name; mat.map=texs[name]||texs.sit; mat.needsUpdate=true; },
+    setPose(name){ if(pose===name)return; pose=name; const h=texs[name]; mat.map=(h&&h.ready)?h.tex:texs.sit; mat.needsUpdate=true; },
     draw(){}};
 }
 const catWhite=makeCatSprite({alert:'assets/cat/white-alert.png',groom:'assets/cat/white-groom.png',knead:'assets/cat/white-knead.png',blink:'assets/cat/white-blink.png',sit:'assets/cat/white-sit.png',crouch:'assets/cat/white-crouch.png',leap:'assets/cat/white-leap.png'});
