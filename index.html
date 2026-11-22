@@ -3046,6 +3046,10 @@ function rayHit(group){
   for(const h of hits){ if(!h.object.userData.noHit)return true; }
   return false;
 }
+function nearAnchor(sc,rx,ry){
+  const dx=(mouseX-sc.sx)/rx,dy=(mouseY-sc.sy)/ry;
+  return dx*dx+dy*dy<1;
+}
 const scareScreen={sx:-1e4,sy:-1e4};
 const noteScreen={sx:-1e4,sy:-1e4};
 const treeScreen={sx:-1e4,sy:-1e4};
@@ -3882,7 +3886,8 @@ canvas.addEventListener('pointerdown',e=>{
   }
   /* 两步彩蛋：先点稻草人进入检视特写，再点胸口纸条展开留笺（仅秋季可见时可点） */
   tappedEgg=false;
-  const hScare=rayHit(scarecrow),hTree=rayHit(xmasTree);
+  const hScare=rayHit(scarecrow)||nearAnchor(scareScreen,26,32);
+  const hTree=rayHit(xmasTree)||nearAnchor(treeScreen,26,30);
   if(scarecrow.visible){
     const onNote=inspect&&Math.hypot(mouseX-noteScreen.sx,mouseY-noteScreen.sy)<70;
     const onBody=!inspect&&hScare;
