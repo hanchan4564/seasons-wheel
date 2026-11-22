@@ -300,8 +300,19 @@ const GRASS_R=9.55;       // 草地半径
 const HUB_R=1.75;         // 中心轴半径
 const REV_SECONDS=7.5;    // 指针转一圈（一个季节）的时长
 const IS_MOBILE=/Mobi|Android/i.test(navigator.userAgent)||(matchMedia('(pointer:coarse)').matches&&innerWidth<820);
-const BLADE_COUNT=IS_MOBILE?50000:165000;
-const FLOWER_COUNT=IS_MOBILE?600:1100;
+/* 机型分级：high 强机给高清画质，low 弱机减粒子保帧率，mid 均衡 */
+(function(){
+  const cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||4;
+  let gpu='';try{const gl=document.createElement('canvas').getContext('webgl');const e=gl&&gl.getExtension('WEBGL_debug_renderer_info');if(e)gpu=gl.getParameter(e.UNMASKED_RENDERER_WEBGL)||'';}catch(err){}
+  window.__tier='mid';
+  if(!IS_MOBILE)window.__tier='high';
+  else if(/Adreno\s*7|Mali-G7[89]|Mali-G8|Apple\s*GPU|RTX|GeForce/i.test(gpu)||(cores>=8&&mem>=6))window.__tier='high';
+  else if(/Adreno\s*5|Adreno\s*6[0-2]|Mali-G5[12]|Mali-G3/i.test(gpu)||cores<=4||mem<=3)window.__tier='low';
+})();
+const TIER=window.__tier;
+const pc=(desk,mob)=>!IS_MOBILE?desk:TIER==='high'?desk:TIER==='low'?Math.round(mob*0.7):mob;
+const BLADE_COUNT=pc(165000,50000);
+const FLOWER_COUNT=pc(1100,600);
 
 /* 季节调色板：0 裸盘 1 春 2 夏 3 秋 4 冬 */
 const SEASONS=[
@@ -322,7 +333,7 @@ const SEASON_META=[
 /* ===== 渲染器 / 场景 / 相机 ===== */
 const canvas=document.getElementById('stage');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,IS_MOBILE?1.5:1.8));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,!IS_MOBILE?1.8:TIER==='high'?1.8:TIER==='low'?1.25:1.5));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
@@ -342,8 +353,9 @@ const rim=new THREE.DirectionalLight(0x6b7fbf,0.4);rim.position.set(-14,8,-10);s
 /* ===== 自写 Bloom 后期：场景离屏 → 亮阈提取 → 可分离高斯模糊 → 加色合成 ===== */
 const _rtOpt={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,depthBuffer:true};
 const sceneRT=new THREE.WebGLRenderTarget(innerWidth,innerHeight,_rtOpt);
-sceneRT.samples=IS_MOBILE?2:4;
-const _bw=IS_MOBILE?Math.ceil(innerWidth/2):innerWidth,_bh=IS_MOBILE?Math.ceil(innerHeight/2):innerHeight;
+sceneRT.samples=(!IS_MOBILE||TIER==='high')?4:2;
+const _bloomHalf=IS_MOBILE&&TIER!=='high';
+const _bw=_bloomHalf?Math.ceil(innerWidth/2):innerWidth,_bh=_bloomHalf?Math.ceil(innerHeight/2):innerHeight;
 const bloomA=new THREE.WebGLRenderTarget(_bw,_bh,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,depthBuffer:false});
 const bloomB=new THREE.WebGLRenderTarget(_bw,_bh,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,depthBuffer:false});
 const postScene=new THREE.Scene();
@@ -363,7 +375,7 @@ const compMat=_postMat(
 `uniform sampler2D tBase;uniform sampler2D tBloom;uniform float strength;varying vec2 vUv;
 void main(){vec3 base=texture2D(tBase,vUv).rgb;vec3 bloom=texture2D(tBloom,vUv).rgb;vec3 c=base+bloom*strength;c=pow(max(c,vec3(0.0)),vec3(1.0/2.2));gl_FragColor=vec4(c,1.0);}`,
 {tBase:{value:null},tBloom:{value:null},strength:{value:0.35}});
-function _resizeRT(){const bw=IS_MOBILE?Math.ceil(innerWidth/2):innerWidth,bh=IS_MOBILE?Math.ceil(innerHeight/2):innerHeight;sceneRT.setSize(innerWidth,innerHeight);bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);}
+function _resizeRT(){const half=IS_MOBILE&&TIER!=='high';const bw=half?Math.ceil(innerWidth/2):innerWidth,bh=half?Math.ceil(innerHeight/2):innerHeight;sceneRT.setSize(innerWidth,innerHeight);bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);}
 
 /* ===== 星空：程序化银河着色器 + 闪烁前景星 ===== */
 /* 银道面法线：让银河带斜贯轮盘后方的天空 */
@@ -455,7 +467,7 @@ scene.add(new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat));
 /* 前景闪烁星：均匀天球 + 沿银道面聚集 */
 const starGeo=new THREE.BufferGeometry();
 {
-  const NU=IS_MOBILE?3400:6800,NB=IS_MOBILE?2300:5000,N=NU+NB;
+  const NU=pc(6800,3400),NB=pc(5000,2300),N=NU+NB;
   const pos=new Float32Array(N*3),size=new Float32Array(N),phase=new Float32Array(N),col=new Float32Array(N*3);
   const dir=new THREE.Vector3();
   for(let i=0;i<N;i++){
@@ -527,7 +539,7 @@ function makeGlintTexture(){
 }
 const glintGeo=new THREE.BufferGeometry();
 {
-  const N=IS_MOBILE?110:230;
+  const N=pc(230,110);
   const pos=new Float32Array(N*3),sz=new Float32Array(N),ph=new Float32Array(N);
   for(let i=0;i<N;i++){
     const th=Math.random()*TAU,elv=rndRange(-0.5,0.9);
@@ -659,7 +671,7 @@ makeAuroraLayer(470,340,-30, 4.7,0.55,[[0.18,0.74,1.00],[0.26,0.46,0.96],[0.55,0
 makeAuroraLayer(396,170,-100,9.3,0.40,[[0.32,0.90,1.00],[0.42,0.70,0.96],[0.52,0.32,0.90]]);
 
 /* ===== 星海竖雨：双层密集宝蓝星流（远层细密铺满 + 近层成簇亮头），复刻参考视频 ===== */
-const FALL_N=IS_MOBILE?620:1900;
+const FALL_N=pc(1900,620);
 const fallGeo=new THREE.BufferGeometry();
 const headBase=[];
 {
@@ -769,7 +781,7 @@ const headPts=new THREE.Points(headGeo,headMat);
 headPts.frustumCulled=false;headPts.renderOrder=-1;scene.add(headPts);
 
 /* ===== 地平线金辉：远处一圈暖金远灯，像参考视频底部水面反光 ===== */
-const HOR_N=IS_MOBILE?130:260;
+const HOR_N=pc(260,130);
 const horGeo=new THREE.BufferGeometry();
 {
   const pos=new Float32Array(HOR_N*3),sz=new Float32Array(HOR_N),ph=new Float32Array(HOR_N),
@@ -812,7 +824,7 @@ const horPts=new THREE.Points(horGeo,horMat);
 horPts.frustumCulled=false;scene.add(horPts);
 
 /* ===== 流星：辐射点透视 + 亮度分级 + 亮火流星余辉 ===== */
-const MET_N=IS_MOBILE?22:44;
+const MET_N=pc(44,22);
 function makeMeteorMap(tail){
   const c=document.createElement('canvas');c.width=320;c.height=64;
   const g=c.getContext('2d');
@@ -865,7 +877,7 @@ function makeFlareMap(){
 }
 const metMap=MET_PALS[0].map,flareMap=makeFlareMap();
 /* 末端爆闪星屑池：火流星熄灭瞬间四散的小光点 */
-const MBURST_N=IS_MOBILE?18:36;
+const MBURST_N=pc(36,18);
 const burstPool=[];
 for(let i=0;i<MBURST_N;i++){
   const sm=new THREE.SpriteMaterial({map:flareMap,transparent:true,opacity:0,color:0xfff0d0,
@@ -977,7 +989,7 @@ function meteorUpdate(sdt){
     newRadiant();
     auroraBoost=Math.max(auroraBoost,1.6);
     /* 一场流星雨要"下得久一点、稀一点"，比一瞬间几十条更像真的 */
-    const n=Math.round(rndRange(10,16)*(IS_MOBILE?0.62:1));
+    const n=Math.round(rndRange(10,16)*(!IS_MOBILE||TIER==='high'?1:TIER==='low'?0.44:0.62));
     const burst=rndRange(3.4,6.2);
     for(let i=0;i<n;i++){
       if(metQueue.length>=40)break;
@@ -1023,7 +1035,7 @@ function meteorUpdate(sdt){
       /* 火流星熄灭：爆闪星屑 + 拉长余烬光带 */
       if(m.big){
         skyAt(m.sx+m.dx*m.len,m.sy+m.dy*m.len,420,_mA);
-        emitBurst(_mA,m.pal?m.pal.head:0xfff0d0,IS_MOBILE?6:10);
+        emitBurst(_mA,m.pal?m.pal.head:0xfff0d0,pc(10,6));
         m.afT=0;m.afX=_mA.x;m.afY=_mA.y;m.afZ=_mA.z;
         m.afLen=Math.max(2,m.len*26);m.afRot=Math.atan2(m.dy,m.dx);
         m.af.material.color.setHex(m.pal?m.pal.head:0x9fc0ff);
@@ -1751,7 +1763,7 @@ function makeParticles(N,color,vertBody,sizeRange){
   return mat;
 }
 /* 春：白色飞絮，缓慢漂浮 */
-const petalMat=makeParticles(IS_MOBILE?110:210,0xfff6e0,`
+const petalMat=makeParticles(pc(210,110),0xfff6e0,`
   float t=uTime*0.10+aSeed*40.0;
   p.y=0.5+mod(aSeed*7.0+uTime*(0.10+aSeed*0.10),3.2);
   p.x+=sin(uTime*0.22+aSeed*31.0)*0.9;
@@ -1760,7 +1772,7 @@ const petalMat=makeParticles(IS_MOBILE?110:210,0xfff6e0,`
   vA*=1.0-smoothstep(3.0,3.7,p.y);
 `,[0.10,0.20]);
 /* 春：蒲公英绒絮，比花瓣更轻、更慢，打着旋往上飘 */
-const fluffMat=makeParticles(IS_MOBILE?70:140,0xfffaf0,`
+const fluffMat=makeParticles(pc(140,70),0xfffaf0,`
   p.y=0.35+mod(aSeed*6.0+uTime*(0.045+aSeed*0.055),2.6);
   float sw=uTime*0.13+aSeed*17.0;
   p.x+=sin(sw)*1.7+sin(uTime*0.55+aSeed*41.0)*0.30;
@@ -1768,21 +1780,21 @@ const fluffMat=makeParticles(IS_MOBILE?70:140,0xfffaf0,`
   vA=(0.30+0.30*sin(uTime*0.8+aSeed*33.0))*(1.0-smoothstep(2.3,3.0,p.y));
 `,[0.055,0.115]);
 /* 夏：流萤低飞，绿金明灭 */
-const fireflyMat=makeParticles(IS_MOBILE?120:220,0xd6ff9e,`
+const fireflyMat=makeParticles(pc(220,120),0xd6ff9e,`
   p.y=0.35+mod(aSeed*5.0+uTime*(0.05+aSeed*0.06),1.6);
   p.x+=sin(uTime*0.30+aSeed*31.0)*0.7;
   p.z+=cos(uTime*0.24+aSeed*23.0)*0.7;
   vA=pow(0.5+0.5*sin(uTime*2.2+aSeed*60.0),2.0);
 `,[0.10,0.18]);
 /* 夏：暖金萤，与冷绿萤火混成一条低飞的萤河 */
-const emberMat=makeParticles(IS_MOBILE?60:120,0xffe6a2,`
+const emberMat=makeParticles(pc(120,60),0xffe6a2,`
   p.y=0.30+mod(aSeed*4.0+uTime*(0.035+aSeed*0.05),1.15);
   p.x+=sin(uTime*0.22+aSeed*27.0)*1.15;
   p.z+=cos(uTime*0.19+aSeed*19.0)*1.15;
   vA=pow(0.5+0.5*sin(uTime*1.7+aSeed*53.0),3.0)*0.9;
 `,[0.09,0.16]);
 /* 秋：金色草籽漫天飞扬 */
-const seedMat=makeParticles(IS_MOBILE?380:760,0xffd98a,`
+const seedMat=makeParticles(pc(760,380),0xffd98a,`
   p.y=mod(aSeed*9.0+uTime*(0.30+aSeed*0.55),6.0);
   float sw=uTime*0.35+aSeed*20.0;
   p.x+=sin(sw)*1.1+sin(uTime*0.9+aSeed*40.0)*0.25;
@@ -1790,14 +1802,14 @@ const seedMat=makeParticles(IS_MOBILE?380:760,0xffd98a,`
   vA=smoothstep(0.0,0.5,p.y)*(1.0-smoothstep(4.6,6.0,p.y));
 `,[0.10,0.20]);
 /* 冬：落雪 */
-const snowfallMat=makeParticles(IS_MOBILE?820:1500,0xf4f8ff,`
+const snowfallMat=makeParticles(pc(1500,820),0xf4f8ff,`
   p.y=7.6-mod(aSeed*17.0+uTime*(0.85+aSeed*0.75),8.2);
   p.x+=sin(uTime*0.5+aSeed*30.0)*0.5;
   p.z+=cos(uTime*0.4+aSeed*26.0)*0.5;
   vA=smoothstep(-0.4,0.3,p.y);
 `,[0.18,0.40]);
 /* 冬：贴地风吹雪（雪面上一层很淡、很短的流雪丝，不再放射状拉成长线） */
-const DRIFT_N=IS_MOBILE?90:200;
+const DRIFT_N=pc(200,90);
 const driftGeo=new THREE.BufferGeometry();
 {
   const pos=new Float32Array(DRIFT_N*6);
@@ -1896,7 +1908,7 @@ function makeLeafMap(){
   return t;
 }
 const leafMap=makeLeafMap();
-const LEAF_N=IS_MOBILE?210:430;
+const LEAF_N=pc(430,210);
 const leafGeo=propGeometry(LEAF_N,function(d,i){
   d[i*4]=rndRange(0.30,0.55);        // 叶尺寸
   d[i*4+1]=Math.random();            // 色相分级
@@ -1948,7 +1960,7 @@ const leaves=new THREE.Mesh(leafGeo,leafMat);
 leaves.frustumCulled=false;discGroup.add(leaves);
 
 /* --- 秋·万叶纷飞：被风卷起、翻飞下落的枫叶阵（真正"下叶子"的震撼感） --- */
-const LEAFFALL_N=IS_MOBILE?100:220;
+const LEAFFALL_N=pc(220,100);
 const leafFallGeo=propGeometry(LEAFFALL_N,function(d,i){
   d[i*4]=rndRange(0.42,0.88);    // 叶尺寸
   d[i*4+1]=Math.random();        // 色相分级
@@ -2005,7 +2017,7 @@ const leafFalls=new THREE.Mesh(leafFallGeo,leafFallMat);
 leafFalls.frustumCulled=false;discGroup.add(leafFalls);
 
 /* --- 冬霜花：雪面上细小柔焦冰晶光点，稀疏点缀（不做尖锐六出枝线） --- */
-const FROST_N=IS_MOBILE?70:130;
+const FROST_N=pc(130,70);
 const frostGeo=propGeometry(FROST_N,function(d,i){
   d[i*4]=rndRange(0.16,0.32);
   d[i*4+1]=Math.random();
@@ -2279,7 +2291,7 @@ function makeSakuraMap(){
   return t;
 }
 const sakuraMap=makeSakuraMap();
-const SAK_N=IS_MOBILE?110:220;
+const SAK_N=pc(220,110);
 const sakuraGeo=propGeometry(SAK_N,function(d,i){
   d[i*4]=rndRange(0.26,0.42);   // 花瓣大小
   d[i*4+1]=Math.random();         // 粉色深浅
@@ -2326,7 +2338,7 @@ const sakuras=new THREE.Mesh(sakuraGeo,sakuraMat);
 sakuras.frustumCulled=false;discGroup.add(sakuras);
 
 /* --- 冬雪星芒：雪面上一闪一闪的碎光 --- */
-const SNOWSPARK_N=IS_MOBILE?150:280;
+const SNOWSPARK_N=pc(280,150);
 const sparkSnowGeo=new THREE.BufferGeometry();
 {
   const pos=new Float32Array(SNOWSPARK_N*3),ph=new Float32Array(SNOWSPARK_N),sz=new Float32Array(SNOWSPARK_N);
@@ -2426,7 +2438,7 @@ function butterflyUpdate(t,amt){
 }
 
 /* --- 夏夜草芒：草尖上零星冷蓝露珠反光，替代白天感 --- */
-const dewMat=makeParticles(IS_MOBILE?90:170,0xbfe4ff,`
+const dewMat=makeParticles(pc(170,90),0xbfe4ff,`
   p.y=0.62+0.55*fract(aSeed*3.7);
   p.x+=sin(uTime*0.4+aSeed*22.0)*0.06;
   p.z+=cos(uTime*0.35+aSeed*18.0)*0.06;
@@ -2461,7 +2473,7 @@ function makeGooseMap(){
   return t;
 }
 const gooseMap=makeGooseMap();
-const GOOSE_N=IS_MOBILE?7:9;
+const GOOSE_N=pc(9,7);
 const geese=[];
 for(let i=0;i<GOOSE_N;i++){
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:gooseMap,transparent:true,
@@ -2839,7 +2851,7 @@ function startWeather(s){
   flashNext=rndRange(1.0,2.0);
 }
 /* 夏雷雨：雨丝只落在浮盘自己的小气候里 */
-const RAIN_N=IS_MOBILE?300:620;
+const RAIN_N=pc(620,300);
 const rainGeo=new THREE.BufferGeometry();
 {
   const rp=new Float32Array(RAIN_N*6),rend=new Float32Array(RAIN_N*2),rs=new Float32Array(RAIN_N*8);
@@ -3301,7 +3313,7 @@ function makeHeartTex(){
   t.encoding=THREE.sRGBEncoding;t.minFilter=THREE.LinearFilter;t.generateMipmaps=false;
   return t;
 }
-const HEART_N=IS_MOBILE?3200:7600;
+const HEART_N=pc(7600,3200);
 const heartGeo=new THREE.BufferGeometry();
 {
   const pos=new Float32Array(HEART_N*3);
@@ -3416,7 +3428,7 @@ function makeWaveRing(op,dir){
 const waveRings=[makeWaveRing(1.0,0.0),makeWaveRing(0.72,0.11),makeWaveRing(0.46,0.22)];
 let waveT=-1;
 /* 星屑：从心核向四周炸开的粒子 */
-const WISH_N=IS_MOBILE?700:1700;
+const WISH_N=pc(1700,700);
 const wishGeo=new THREE.BufferGeometry();
 {
   const pos=new Float32Array(WISH_N*3);
@@ -3471,9 +3483,8 @@ const wishFx=(()=>{
   const cv=document.getElementById('wishFx');
   if(!cv)return {start(){},stop(){},active:false};
   const g=cv.getContext('2d');
-  const MB=IS_MOBILE;
-  const STAR_N=MB?180:300;
-  const RAIN_MAX=MB?160:240;
+  const STAR_N=pc(300,180);
+  const RAIN_MAX=pc(240,160);
   const DUR=8.5;
   let W=0,H=0,DP=1;
   let active=false,run=false,t=0,last=0,raf=0;
@@ -3584,7 +3595,7 @@ const wishFx=(()=>{
     }
     /* 星雨粒子：从顶部持续生成 */
     if(t>0.2&&t<DUR-0.8){
-      const genRate=MB?110:200;
+      const genRate=pc(200,110);
       acc+=dt*genRate*Math.min(1,(t-0.2)/1.8);
       while(acc>=1){
         acc-=1;
@@ -3630,6 +3641,7 @@ const wishFx=(()=>{
     raf=requestAnimationFrame(draw);
   }
   window.addEventListener('resize',()=>{if(active&&run)layout();});
+  window.addEventListener('orientationchange',()=>setTimeout(()=>{if(active&&run)layout();},150));
   return {start:start,stop:finish,get active(){return active;}};
 })();
 let heartNext=14;
@@ -3706,10 +3718,12 @@ canvas.addEventListener('wheel',e=>{
       if(eggBuf.endsWith('christmas')||eggBuf.endsWith('xmas')){location.href='圣诞树.html';}
     }
   });
-window.addEventListener('resize',()=>{
+function _onResize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);_resizeRT();
-});
+}
+window.addEventListener('resize',_onResize);
+window.addEventListener('orientationchange',()=>setTimeout(_onResize,150));
 
 /* ===== 音乐：四季各两首，随季节自动换曲；默认静音、低音量、柔和淡入 ===== */
 (function(){

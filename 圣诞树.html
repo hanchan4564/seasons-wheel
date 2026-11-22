@@ -53,8 +53,18 @@
 <script>
 const cv=document.getElementById('stage');
 const IS_MOBILE=/Mobi|Android/i.test(navigator.userAgent)||(matchMedia('(pointer:coarse)').matches&&innerWidth<820);
+/* 机型分级：high 强机高清，low 弱机减粒子保帧率，mid 均衡 */
+let TIER='mid';
+(function(){
+  const cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||4;
+  let gpu='';try{const gl=document.createElement('canvas').getContext('webgl');const e=gl&&gl.getExtension('WEBGL_debug_renderer_info');if(e)gpu=gl.getParameter(e.UNMASKED_RENDERER_WEBGL)||'';}catch(err){}
+  if(!IS_MOBILE)TIER='high';
+  else if(/Adreno\s*7|Mali-G7[89]|Mali-G8|Apple\s*GPU|RTX|GeForce/i.test(gpu)||(cores>=8&&mem>=6))TIER='high';
+  else if(/Adreno\s*5|Adreno\s*6[0-2]|Mali-G5[12]|Mali-G3/i.test(gpu)||cores<=4||mem<=3)TIER='low';
+})();
+const pc=(desk,mob)=>!IS_MOBILE?desk:TIER==='high'?desk:TIER==='low'?Math.round(mob*0.7):mob;
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,IS_MOBILE?1.5:1.75));
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,!IS_MOBILE?1.75:TIER==='high'?1.75:TIER==='low'?1.25:1.5));
 renderer.setClearColor(0x030811,1);
 
 const scene=new THREE.Scene();
@@ -122,7 +132,7 @@ const streakTex=new THREE.CanvasTexture(stC);
 /* 枝叶三维点云 */
 const FCOL=[[170,214,238],[140,196,224],[110,172,206],[206,236,250]];
 const WCOL=[[236,220,176],[226,206,150]];
-const N=IS_MOBILE?15000:26000;
+const N=pc(26000,15000);
 const pos=new Float32Array(N*3),col=new Float32Array(N*3);
 const src=new Float32Array(N*3),tgt=new Float32Array(N*3),tierA=new Float32Array(N);
 const shellF=new Float32Array(N);
@@ -156,7 +166,7 @@ const folMat=new THREE.PointsMaterial({size:0.085,map:dotTex,vertexColors:true,t
 const fol=new THREE.Points(folGeo,folMat);tree.add(fol);
 
 /* 贴身枝叶：包住树干下段 */
-const SK=IS_MOBILE?900:1600,skPos=new Float32Array(SK*3),skCol=new Float32Array(SK*3);
+const SK=pc(1600,900),skPos=new Float32Array(SK*3),skCol=new Float32Array(SK*3);
 for(let i=0;i<SK;i++){
   const y=lerp(-1.5,0.3,Math.pow(Math.random(),0.7));
   const th=Math.random()*TAU,r=rand(0.05,0.45);
@@ -171,7 +181,7 @@ const skMat=new THREE.PointsMaterial({size:0.06,map:dotTex,vertexColors:true,tra
 const skirt=new THREE.Points(skGeo,skMat);tree.add(skirt);
 
 /* 底层细针叶（树叶），霜粒裹在其外 */
-const NL=IS_MOBILE?1200:2200,nlPos=new Float32Array(NL*6),nlCol=new Float32Array(NL*6);
+const NL=pc(2200,1200),nlPos=new Float32Array(NL*6),nlCol=new Float32Array(NL*6);
 for(let i=0;i<NL;i++){
   const tier=Math.random(),ang=Math.random()*TAU,u=Math.random();
   const shell=0.25+0.75*u,rad=R3*Math.pow(tier,0.8)*shell;
@@ -271,7 +281,7 @@ const comet=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xfffff
 comet.scale.setScalar(0.4);tree.add(comet);
 
 /* 落雪 */
-const SN=IS_MOBILE?400:700,snowPos=new Float32Array(SN*3),snowSpd=new Float32Array(SN);
+const SN=pc(700,400),snowPos=new Float32Array(SN*3),snowSpd=new Float32Array(SN);
 for(let i=0;i<SN;i++){
   snowPos[i*3]=rand(-4,4);snowPos[i*3+1]=rand(-2.5,2.5);snowPos[i*3+2]=rand(-3,3);
   snowSpd[i]=rand(0.15,0.45);
@@ -282,7 +292,7 @@ const snow=new THREE.Points(snowGeo,new THREE.PointsMaterial({size:0.055,map:dot
 scene.add(snow);
 
 /* 远景星空 */
-const BS=IS_MOBILE?180:340,bsPos=new Float32Array(BS*3),bsCol=new Float32Array(BS*3);
+const BS=pc(340,180),bsPos=new Float32Array(BS*3),bsCol=new Float32Array(BS*3);
 for(let i=0;i<BS;i++){
   const th=Math.random()*TAU,ph=Math.acos(rand(-1,1)),r=rand(11,16);
   bsPos[i*3]=r*Math.sin(ph)*Math.cos(th);
@@ -363,7 +373,7 @@ for(let i=0;i<2;i++){
 }
 
 /* 灯串：五层暖光珠环 */
-const FL=5,FB=IS_MOBILE?16:26,flN=FL*FB;
+const FL=5,FB=pc(26,16),flN=FL*FB;
 const flPos=new Float32Array(flN*3);
 let fi=0;
 for(let k=0;k<FL;k++){
@@ -613,7 +623,9 @@ function resize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
 }
-addEventListener('resize',resize);resize();
+addEventListener('resize',resize);
+addEventListener('orientationchange',()=>setTimeout(resize,150));
+resize();
 
 const clock=new THREE.Clock();
 let degraded=false,frameAcc=0,frameN=0;
