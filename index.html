@@ -2534,33 +2534,39 @@ dragonfly.center.set(0.5,0.5);
 dragonfly.position.set(3.0,0.95,-1.2);dragonfly.visible=false;scene.add(dragonfly);
 function decoUpdate(t,sdt,w1,w2,w3,w4){
   groundProps.visible=true;
-  /* 夏蜓：绕荷塘小圈缓飞，随转向轻压机身 */
+  /* 夏蜓：绕荷塘缓飞，机身随盘旋轻倾，上下飘移柔和 */
   dragonfly.visible=w2>0.03;
   if(dragonfly.visible){
     const a=t*0.5;
-    dragonfly.position.set(3.0+Math.cos(a)*0.7,0.95+Math.sin(t*1.1)*0.14,-1.2+Math.sin(a)*0.7);
-    dragonfly.rotation.z=Math.sin(t*0.5)*0.18;
+    dragonfly.position.set(3.0+Math.cos(a)*0.7,
+      0.95+Math.sin(t*1.1)*0.10+Math.sin(t*2.3)*0.03,
+      -1.2+Math.sin(a)*0.7);
+    dragonfly.rotation.z=Math.sin(t*0.5)*0.14;
     dragonfly.material.opacity=Math.min(1,w2);
   }
-  /* 秋松鼠：间歇轻跳，蓬尾随身体轻摆 */
+  /* 秋松鼠：原地轻晃、间歇小跳，尾身随节奏柔和摆动 */
   squirrel.visible=w3>0.03;
   if(squirrel.visible){
-    const hop=Math.pow(Math.max(0,Math.sin(t*2.6)),2)*0.14;
+    const hop=Math.pow(0.5+0.5*Math.sin(t*2.2),2)*0.10;
+    squirrel.position.x=1.9+Math.sin(t*0.7)*0.12;
+    squirrel.position.z=1.9+Math.cos(t*0.6)*0.10;
     squirrel.position.y=0.14+hop;
-    squirrel.rotation.z=Math.sin(t*1.3)*0.07;
+    squirrel.rotation.z=Math.sin(t*1.1)*0.06+Math.sin(t*2.3)*0.02;
     squirrel.material.opacity=Math.min(1,w3);
     squirrelSh.position.set(squirrel.position.x,0.02,squirrel.position.z);
-    squirrelSh.scale.setScalar(1-hop*1.6);
+    squirrelSh.scale.setScalar(1-hop*1.4);
   }
-  /* 冬麻雀：双脚小跳，点头晃身 */
+  /* 冬麻雀：轻点脚步，身体随呼吸微晃 */
   sparrow.visible=w4>0.03;
   if(sparrow.visible){
-    const hop=Math.pow(Math.max(0,Math.sin(t*3.4)),2)*0.10;
+    const hop=Math.pow(0.5+0.5*Math.sin(t*2.8),2)*0.08;
+    sparrow.position.x=-1.6+Math.sin(t*0.8)*0.10;
+    sparrow.position.z=1.4+Math.cos(t*0.7)*0.08;
     sparrow.position.y=0.14+hop;
-    sparrow.rotation.z=Math.sin(t*1.7)*0.06;
+    sparrow.rotation.z=Math.sin(t*1.3)*0.05+Math.sin(t*2.6)*0.02;
     sparrow.material.opacity=Math.min(1,w4);
     sparrowSh.position.set(sparrow.position.x,0.02,sparrow.position.z);
-    sparrowSh.scale.setScalar(1-hop*1.6);
+    sparrowSh.scale.setScalar(1-hop*1.4);
   }
 }
 
