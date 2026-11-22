@@ -579,7 +579,7 @@ addEventListener('pointerup',()=>dragging=false);
 addEventListener('wheel',e=>{e.preventDefault();camTarget=clamp(camTarget+(e.deltaY>0?0.6:-0.6),5,13);},{passive:false});
 function resetView(){yaw=0;pitch=0;camTarget=9.6;camZ=9.6;}
 document.getElementById('reset').addEventListener('click',resetView);
-document.getElementById('back').addEventListener('click',()=>{location.href='四季轮盘.html';});
+document.getElementById('back').addEventListener('click',()=>{location.href='index.html';});
 
 /* 音乐 */
 const music=document.getElementById('music'),musicBtn=document.getElementById('musicBtn');
