@@ -34,6 +34,18 @@
   body.ready #styles{opacity:1;}
   #styles button{padding:6px 13px;border-radius:16px;border:1px solid rgba(160,205,235,.35);background:rgba(10,26,44,.5);color:#cfe4f7;font-size:12px;letter-spacing:.08em;cursor:pointer;}
   #styles button.on{background:rgba(120,190,235,.35);border-color:rgba(180,220,255,.6);color:#fff;}
+  #quality{position:fixed;top:16px;right:5%;z-index:6;user-select:none;opacity:0;transition:opacity .8s ease;}
+  body.ready #quality{opacity:1;}
+  #qBtn{appearance:none;background:rgba(10,26,44,.5);border:1px solid rgba(160,205,235,.35);color:#cfe4f7;
+    font-size:11px;letter-spacing:.12em;padding:7px 12px;border-radius:16px;cursor:pointer;}
+  #qBtn:hover{color:#fff;border-color:rgba(180,220,255,.6);}
+  #qMenu{position:absolute;top:calc(100%+6px);right:0;min-width:128px;background:rgba(8,20,36,.95);
+    border:1px solid rgba(160,205,235,.3);padding:6px 0;display:none;border-radius:12px;}
+  #quality.open #qMenu{display:block;}
+  #qMenu button{display:block;width:100%;text-align:left;background:none;border:0;color:#9fc2dd;
+    font-size:12px;letter-spacing:.12em;padding:8px 14px;cursor:pointer;}
+  #qMenu button:hover{color:#fff;background:rgba(120,190,235,.12);}
+  #qMenu button.on{color:#ffe9a8;}
 </style>
 </head>
 <body>
@@ -46,6 +58,15 @@
 <button id="musicBtn" class="off" title="背景音乐">♪</button>
 <button id="reset" class="btn">复位视角</button>
 <button id="back" class="btn">← 返回主站</button>
+<div id="quality">
+  <button id="qBtn" type="button" aria-haspopup="listbox">画质 · <span id="qLabel">自动</span> ▾</button>
+  <div id="qMenu" role="listbox">
+    <button type="button" data-q="low">流畅</button>
+    <button type="button" data-q="mid">高清</button>
+    <button type="button" data-q="high">超清</button>
+    <button type="button" data-q="4k">4K 极致</button>
+  </div>
+</div>
 <div id="title">Merry Christmas · 圣诞快乐 · 2026</div>
 
 <audio id="music" src="assets/music/xueluo_light.mp3" loop preload="metadata"></audio>
@@ -625,6 +646,28 @@ function resize(){
 }
 addEventListener('resize',resize);
 addEventListener('orientationchange',()=>setTimeout(resize,150));
+
+/* 画质档位：默认按机型自动，可手动流畅/高清/超清/4K，选择记忆本地 */
+const QMAP={low:1.0,mid:1.5,high:2.0,'4k':Math.min(devicePixelRatio||1,3)};
+const QNAME={low:'流畅',mid:'高清',high:'超清','4k':'4K 极致'};
+const qBox=document.getElementById('quality'),qBtn=document.getElementById('qBtn'),
+  qLabel=document.getElementById('qLabel'),qMenu=document.getElementById('qMenu');
+let quality='auto';
+try{quality=localStorage.getItem('sq_quality')||'auto';}catch(e){}
+function applyQuality(q){
+  quality=q;
+  let cap;
+  if(q==='auto')cap=!IS_MOBILE?1.75:TIER==='high'?1.75:TIER==='low'?1.25:1.5;
+  else cap=QMAP[q];
+  renderer.setPixelRatio(cap);resize();
+  qLabel.textContent=q==='auto'?'自动':QNAME[q];
+  qMenu.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.q===q));
+  try{localStorage.setItem('sq_quality',q);}catch(e){}
+}
+qBtn.addEventListener('click',e=>{e.stopPropagation();qBox.classList.toggle('open');});
+qMenu.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;applyQuality(b.dataset.q);qBox.classList.remove('open');});
+document.addEventListener('pointerdown',e=>{if(!qBox.contains(e.target))qBox.classList.remove('open');});
+applyQuality(quality);
 resize();
 
 const clock=new THREE.Clock();
