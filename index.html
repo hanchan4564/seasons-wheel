@@ -1553,7 +1553,7 @@ const grassMat=new THREE.ShaderMaterial({
       vec3 base=mix(uBaseA,uBaseB,m);
       vec3 tip=mix(uTipA,uTipB,m);
       /* 本地扇区冬季判定：只有指针扫到的冬季区域才挂霜，未扫到的旧季保持本色 */
-      float locWinter=mix(uWinterA,uWinterB,1.0-m);
+      float locWinter=mix(uWinterA,uWinterB,m);
       vWinter=locWinter;
       tip=mix(tip,vec3(0.62,0.58,0.26),step(0.82,aData.z)*0.5*uDry);
       float rim=smoothstep(8.95,9.55,length(aOffset));
