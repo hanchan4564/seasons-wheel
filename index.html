@@ -1561,9 +1561,9 @@ const grassMat=new THREE.ShaderMaterial({
       vec2 windDir=normalize(vec2(0.86,0.51));
       float wAmt=uWind*0.6;
       /* 阵风包络：长波缓摆带短波颤叶，整片草连成流动草浪 */
-      float sway=sin(uTime*1.10+aData.y+aOffset.x*0.40+aOffset.y*0.30)*0.070
-                +sin(uTime*0.70-(aOffset.x+aOffset.y)*0.25)*0.055
-                +sin(uTime*2.30+aData.y*2.0)*0.013;
+      float sway=sin(uTime*1.10+aData.y+aOffset.x*0.40+aOffset.y*0.30)*0.095
+                +sin(uTime*0.70-(aOffset.x+aOffset.y)*0.25)*0.075
+                +sin(uTime*2.30+aData.y*2.0)*0.014;
       /* 阵风起伏：风来时成片草叶顺风压低，间隙回弹 */
       float gust=0.5+0.5*sin(uTime*0.45+dot(aOffset,windDir)*1.15);
       vec2 bendDir=vec2(sin(aData.w),cos(aData.w));
@@ -1583,10 +1583,10 @@ const grassMat=new THREE.ShaderMaterial({
       float w1=dot(aOffset,windDir)*2.2-uTime*(0.85+uWinter*0.45)+aData.y*0.40;
       float w2=dot(aOffset,crossDir)*3.4-uTime*1.25+aData.y*1.10;
       float swell=sin(w1)*0.7+sin(w2)*0.3;
-      world.xz+=windDir*swell*0.22*y*y*wAmt*breathe;
-      world.xz+=crossDir*sin(w2)*0.10*y*y*wAmt*breathe;
+      world.xz+=windDir*swell*0.30*y*y*wAmt*breathe;
+      world.xz+=crossDir*sin(w2)*0.14*y*y*wAmt*breathe;
       /* 随浪起起伏伏的竖向呼吸 */
-      world.y+=swell*0.05*y*breathe;
+      world.y+=swell*0.07*y*breathe;
       vec2 cb=catBend(aOffset,y);
       world.xz+=cb*0.62;
       world.y*=1.0-min(0.45,length(cb)*1.0);
@@ -3200,7 +3200,7 @@ function animate(){
     lightTint[0].b*w[1]+lightTint[1].b*w[2]+lightTint[2].b*w[3]+lightTint[3].b*w[4]);
   key.color.copy(_tint);
   hemi.color.copy(_tint).lerp(new THREE.Color(0x39496b),0.55);
-  seasonUniforms.uWind.value=0.75+autumnW*0.45+winterW*0.30;
+  seasonUniforms.uWind.value=0.85+greenW*0.22+autumnW*0.45+winterW*0.35;
   _under.setRGB(
     _uc[0].r*w[1]+_uc[1].r*w[2]+_uc[2].r*w[3]+_uc[3].r*w[4],
     _uc[0].g*w[1]+_uc[1].g*w[2]+_uc[2].g*w[3]+_uc[3].g*w[4],
