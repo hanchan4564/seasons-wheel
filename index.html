@@ -2151,7 +2151,7 @@ const xmasMats=[];
   const green=mk(0x236b3c),starM=mk(0xffd76a),red=mk(0xd83a3a),gold=mk(0xf2b64a),white=mk(0xf3f6ff);
   const trunk=mk(0x6b4a33),moundM=mk(0xeef3fb),shadow=mk(0x1a2438,{opacity:0.38});
   const sh=new THREE.Mesh(new THREE.CircleGeometry(0.55,20),shadow);
-  sh.rotation.x=-Math.PI/2;sh.position.y=0.01;xmasTree.add(sh);
+  sh.rotation.x=-Math.PI/2;sh.position.y=0.01;sh.userData.noHit=true;xmasTree.add(sh);
   const mound=new THREE.Mesh(new THREE.SphereGeometry(0.5,18,12),moundM);
   mound.scale.y=0.32;mound.position.y=0.06;xmasTree.add(mound);
   const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.08,0.2,8),trunk);
@@ -3042,7 +3042,9 @@ function rayHit(group){
   if(!group||!group.visible)return false;
   _ndc.set(mouseX/innerWidth*2-1,-(mouseY/innerHeight)*2+1);
   raycaster.setFromCamera(_ndc,camera);
-  return raycaster.intersectObject(group,true).length>0;
+  const hits=raycaster.intersectObject(group,true);
+  for(const h of hits){ if(!h.object.userData.noHit)return true; }
+  return false;
 }
 const scareScreen={sx:-1e4,sy:-1e4};
 const noteScreen={sx:-1e4,sy:-1e4};
