@@ -244,7 +244,7 @@
     <button type="button" data-q="4k">4K 极致</button>
   </div>
 </div>
-<audio id="mAudio" src="assets/music/chunye_light.mp3" preload="metadata"></audio>
+<audio id="mAudio" preload="none"></audio>
 <div id="loader"><div class="ring"></div><p>星盘转动中</p></div>
 <div id="fallback">三维引擎加载失败<br>请检查网络后刷新页面</div>
 <div id="noteModal" class="note-modal" aria-hidden="true">
@@ -3873,7 +3873,7 @@ applyQuality(quality);
     prog.style.width='0%';
     paintList();save();
     const swap=function(){
-      au.src=cur().file;
+      if(started||play)au.src=cur().file;
       au.volume=0;
       paintState();
       if(play)start();
@@ -3883,6 +3883,7 @@ applyQuality(quality);
   }
   function start(){
     started=true;failed=false;
+    if(!au.src)au.src=cur().file;
     if(muted){muted=false;au.muted=false;}
     au.volume=0;
     const p=au.play();
@@ -3948,7 +3949,6 @@ applyQuality(quality);
     }
     paintState();
   };
-  au.src=cur().file;
   paintList();paintState();
 })();
 

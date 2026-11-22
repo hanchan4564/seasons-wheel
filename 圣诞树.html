@@ -69,7 +69,7 @@
 </div>
 <div id="title">Merry Christmas · 圣诞快乐 · 2026</div>
 
-<audio id="music" src="assets/music/xueluo_light.mp3" loop preload="metadata"></audio>
+<audio id="music" loop preload="none"></audio>
 <script src="three.min.js"></script>
 <script>
 const cv=document.getElementById('stage');
@@ -617,13 +617,14 @@ document.getElementById('back').addEventListener('click',()=>{location.href='ind
 /* 音乐 */
 const music=document.getElementById('music'),musicBtn=document.getElementById('musicBtn');
 let musicStarted=false;
-function toggleMusic(){if(music.paused){music.volume=.35;music.play().catch(()=>{});}else{music.pause();}}
+function ensureMusicSrc(){if(!music.src)music.src='assets/music/xueluo_light.mp3';}
+function toggleMusic(){ensureMusicSrc();if(music.paused){music.volume=.35;music.play().catch(()=>{});}else{music.pause();}}
 music.addEventListener('play',()=>musicBtn.classList.remove('off'));
 music.addEventListener('pause',()=>musicBtn.classList.add('off'));
 musicBtn.addEventListener('click',e=>{e.stopPropagation();toggleMusic();});
 addEventListener('pointerdown',e=>{
   if(e.target.id==='musicBtn'||e.target.id==='reset'||e.target.id==='back')return;
-  if(!musicStarted){musicStarted=true;music.volume=.35;music.play().catch(()=>{});}
+  if(!musicStarted){musicStarted=true;ensureMusicSrc();music.volume=.35;music.play().catch(()=>{});}
 });
 addEventListener('pointerup',e=>{
   if(e.target.id==='musicBtn'||e.target.id==='reset'||e.target.id==='back')return;
