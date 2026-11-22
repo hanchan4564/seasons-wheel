@@ -87,7 +87,7 @@ let _sq='auto';try{_sq=localStorage.getItem('sq_quality')||'auto';}catch(e){}
 const QLEVEL=_sq==='auto'?TIER:(_sq==='low'?'low':_sq==='mid'?'mid':'high');
 const pc=(desk,mob)=>!IS_MOBILE?desk:QLEVEL==='high'?desk:QLEVEL==='low'?Math.round(mob*0.7):mob;
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,!IS_MOBILE?1.75:QLEVEL==='high'?1.75:QLEVEL==='low'?1.25:1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,!IS_MOBILE?2.0:QLEVEL==='high'?2.5:QLEVEL==='low'?1.25:1.5));
 renderer.setClearColor(0x030811,1);
 
 const scene=new THREE.Scene();
@@ -128,7 +128,7 @@ function dotTexture(){
   const c=document.createElement('canvas');c.width=c.height=64;
   const g=c.getContext('2d');
   const gr=g.createRadialGradient(32,32,0,32,32,32);
-  gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.4,'rgba(255,255,255,.8)');
+  gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.25,'rgba(255,255,255,.95)');gr.addColorStop(.55,'rgba(255,255,255,.22)');
   gr.addColorStop(1,'rgba(255,255,255,0)');
   g.fillStyle=gr;g.fillRect(0,0,64,64);
   return new THREE.CanvasTexture(c);
@@ -641,7 +641,8 @@ addEventListener('pointerup',e=>{
 });
 
 /* 入场时间线 */
-const t0=performance.now();let ready=false;
+let _skipIntro=false;try{_skipIntro=sessionStorage.getItem('sq_skipintro')==='1';sessionStorage.removeItem('sq_skipintro');}catch(e){}
+const t0=_skipIntro?performance.now()-8000:performance.now();let ready=false;
 function resize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
@@ -650,7 +651,7 @@ addEventListener('resize',resize);
 addEventListener('orientationchange',()=>setTimeout(resize,150));
 
 /* 画质档位：默认按机型自动，可手动流畅/高清/超清/4K，选择记忆本地 */
-const QMAP={low:1.0,mid:1.5,high:2.0,'4k':Math.min(devicePixelRatio||1,3)};
+const QMAP={low:1.0,mid:1.5,high:2.5,'4k':Math.min(devicePixelRatio||1,3)};
 const QNAME={low:'流畅',mid:'高清',high:'超清','4k':'4K 极致'};
 const qBox=document.getElementById('quality'),qBtn=document.getElementById('qBtn'),
   qLabel=document.getElementById('qLabel'),qMenu=document.getElementById('qMenu');
@@ -661,13 +662,13 @@ function applyQuality(q){
   quality=q;
   const lvl=_levelOf(q);
   let cap;
-  if(q==='auto')cap=!IS_MOBILE?1.75:QLEVEL==='high'?1.75:QLEVEL==='low'?1.25:1.5;
+  if(q==='auto')cap=!IS_MOBILE?2.0:QLEVEL==='high'?2.5:QLEVEL==='low'?1.25:1.5;
   else cap=QMAP[q];
   renderer.setPixelRatio(cap);resize();
   qLabel.textContent=q==='auto'?'自动':QNAME[q];
   qMenu.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.q===q));
   try{localStorage.setItem('sq_quality',q);}catch(e){}
-  if(lvl!==QLEVEL)setTimeout(()=>location.reload(),250);
+  if(lvl!==QLEVEL){try{sessionStorage.setItem('sq_skipintro','1');}catch(e){}setTimeout(()=>location.reload(),80);}
 }
 qBtn.addEventListener('click',e=>{e.stopPropagation();qBox.classList.toggle('open');});
 qMenu.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;applyQuality(b.dataset.q);qBox.classList.remove('open');});
