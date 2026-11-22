@@ -331,7 +331,9 @@ const IS_MOBILE=/Mobi|Android/i.test(navigator.userAgent)||(matchMedia('(pointer
   else if(/Adreno\s*5|Adreno\s*6[0-2]|Mali-G5[12]|Mali-G3/i.test(gpu)||cores<=4||mem<=3)window.__tier='low';
 })();
 const TIER=window.__tier;
-const pc=(desk,mob)=>!IS_MOBILE?desk:TIER==='high'?desk:TIER==='low'?Math.round(mob*0.7):mob;
+let _sq='auto';try{_sq=localStorage.getItem('sq_quality')||'auto';}catch(e){}
+const QLEVEL=_sq==='auto'?TIER:(_sq==='low'?'low':_sq==='mid'?'mid':'high');
+const pc=(desk,mob)=>!IS_MOBILE?desk:QLEVEL==='high'?desk:QLEVEL==='low'?Math.round(mob*0.7):mob;
 const BLADE_COUNT=pc(165000,50000);
 const FLOWER_COUNT=pc(1100,600);
 
@@ -354,7 +356,7 @@ const SEASON_META=[
 /* ===== 渲染器 / 场景 / 相机 ===== */
 const canvas=document.getElementById('stage');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,!IS_MOBILE?1.8:TIER==='high'?1.8:TIER==='low'?1.25:1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,!IS_MOBILE?1.8:QLEVEL==='high'?1.8:QLEVEL==='low'?1.25:1.5));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
@@ -374,8 +376,8 @@ const rim=new THREE.DirectionalLight(0x6b7fbf,0.4);rim.position.set(-14,8,-10);s
 /* ===== 自写 Bloom 后期：场景离屏 → 亮阈提取 → 可分离高斯模糊 → 加色合成 ===== */
 const _rtOpt={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,depthBuffer:true};
 const sceneRT=new THREE.WebGLRenderTarget(innerWidth,innerHeight,_rtOpt);
-sceneRT.samples=(!IS_MOBILE||TIER==='high')?4:2;
-const _bloomHalf=IS_MOBILE&&TIER!=='high';
+sceneRT.samples=(!IS_MOBILE||QLEVEL==='high')?4:2;
+const _bloomHalf=IS_MOBILE&&QLEVEL!=='high';
 const _bw=_bloomHalf?Math.ceil(innerWidth/2):innerWidth,_bh=_bloomHalf?Math.ceil(innerHeight/2):innerHeight;
 const bloomA=new THREE.WebGLRenderTarget(_bw,_bh,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,depthBuffer:false});
 const bloomB=new THREE.WebGLRenderTarget(_bw,_bh,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,depthBuffer:false});
@@ -396,7 +398,7 @@ const compMat=_postMat(
 `uniform sampler2D tBase;uniform sampler2D tBloom;uniform float strength;varying vec2 vUv;
 void main(){vec3 base=texture2D(tBase,vUv).rgb;vec3 bloom=texture2D(tBloom,vUv).rgb;vec3 c=base+bloom*strength;c=pow(max(c,vec3(0.0)),vec3(1.0/2.2));gl_FragColor=vec4(c,1.0);}`,
 {tBase:{value:null},tBloom:{value:null},strength:{value:0.35}});
-function _resizeRT(){const half=IS_MOBILE&&TIER!=='high';const bw=half?Math.ceil(innerWidth/2):innerWidth,bh=half?Math.ceil(innerHeight/2):innerHeight;sceneRT.setSize(innerWidth,innerHeight);bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);}
+function _resizeRT(){const half=IS_MOBILE&&QLEVEL!=='high';const bw=half?Math.ceil(innerWidth/2):innerWidth,bh=half?Math.ceil(innerHeight/2):innerHeight;sceneRT.setSize(innerWidth,innerHeight);bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);}
 
 /* ===== 星空：程序化银河着色器 + 闪烁前景星 ===== */
 /* 银道面法线：让银河带斜贯轮盘后方的天空 */
@@ -1010,7 +1012,7 @@ function meteorUpdate(sdt){
     newRadiant();
     auroraBoost=Math.max(auroraBoost,1.6);
     /* 一场流星雨要"下得久一点、稀一点"，比一瞬间几十条更像真的 */
-    const n=Math.round(rndRange(10,16)*(!IS_MOBILE||TIER==='high'?1:TIER==='low'?0.44:0.62));
+    const n=Math.round(rndRange(10,16)*(!IS_MOBILE||QLEVEL==='high'?1:QLEVEL==='low'?0.44:0.62));
     const burst=rndRange(3.4,6.2);
     for(let i=0;i<n;i++){
       if(metQueue.length>=40)break;
@@ -3753,15 +3755,18 @@ const qBox=document.getElementById('quality'),qBtn=document.getElementById('qBtn
   qLabel=document.getElementById('qLabel'),qMenu=document.getElementById('qMenu');
 let quality='auto';
 try{quality=localStorage.getItem('sq_quality')||'auto';}catch(e){}
+function _levelOf(q){return q==='auto'?QLEVEL:(q==='low'?'low':q==='mid'?'mid':'high');}
 function applyQuality(q){
   quality=q;
+  const lvl=_levelOf(q);
   let cap;
-  if(q==='auto')cap=!IS_MOBILE?1.8:TIER==='high'?1.8:TIER==='low'?1.25:1.5;
+  if(q==='auto')cap=!IS_MOBILE?1.8:QLEVEL==='high'?1.8:QLEVEL==='low'?1.25:1.5;
   else cap=QMAP[q];
   renderer.setPixelRatio(cap);_onResize();
   qLabel.textContent=q==='auto'?'自动':QNAME[q];
   qMenu.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.q===q));
   try{localStorage.setItem('sq_quality',q);}catch(e){}
+  if(lvl!==QLEVEL)setTimeout(()=>location.reload(),250);
 }
 qBtn.addEventListener('click',e=>{e.stopPropagation();qBox.classList.toggle('open');});
 qMenu.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;applyQuality(b.dataset.q);qBox.classList.remove('open');});
