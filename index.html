@@ -334,7 +334,7 @@ let _sq='auto';try{_sq=localStorage.getItem('sq_quality')||'auto';}catch(e){}
 const QLEVEL=_sq==='auto'?TIER:(_sq==='low'?'low':_sq==='mid'?'mid':'high');
 const pc=(desk,mob)=>!IS_MOBILE?desk:QLEVEL==='high'?desk:QLEVEL==='low'?Math.round(mob*0.7):mob;
 const BLADE_COUNT=pc(165000,50000);
-const FLOWER_COUNT=pc(1100,600);
+const FLOWER_COUNT=pc(2000,1000);
 
 /* 季节调色板：0 裸盘 1 春 2 夏 3 秋 4 冬 */
 const SEASONS=[
@@ -1487,7 +1487,7 @@ const SEASON_GLSL=`
   }
 `;
 function bladeGeometry(){
-  const w=0.046;
+  const w=0.038;
   const pos=new Float32Array([
     -w,0,0,  w,0,0,
     -w*0.75,0.33,0,  w*0.75,0.33,0,
@@ -1652,8 +1652,8 @@ const flowerGeo=new THREE.InstancedBufferGeometry();
       const d=Math.hypot(x-c[0],z-c[1])/c[2];
       best=Math.max(best,Math.exp(-d*d*1.6));
     }
-    /* 簇心必留，簇外只零星漏几朵 */
-    if(Math.random()>best*0.92+0.045)continue;
+    /* 簇心必留，簇外零星漏花，整体铺成遍地小白花的草甸 */
+    if(Math.random()>best*1.0+0.15)continue;
     off[placed*2]=x;off[placed*2+1]=z;
     ang[placed]=a;
     dat[placed*3]=rndRange(0.62,1.15)*rndRange(0.85,1.0);
