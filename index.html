@@ -1347,13 +1347,7 @@ const underGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0x9
 underGlow.scale.set(18,11,1);underGlow.position.set(0,0.12,0);discGroup.add(underGlow);
 const _uc=[new THREE.Color(0xffc9d6),new THREE.Color(0x9effc9),new THREE.Color(0xffc27a),new THREE.Color(0xa9c8ff)];
 const _under=new THREE.Color();
-/* 鼠标微光尾迹 */
-const trailN=10,trail=[];
-for(let i=0;i<trailN;i++){
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xbfe0ff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
-  sp.scale.setScalar(0.30-i*0.012);sp.visible=false;scene.add(sp);trail.push(sp);
-}
-const _mp=new THREE.Vector3();
+
 
 /* 参考视频同款：一条青→青绿→紫→宝蓝的斜向柔边光弧（盘后天幕背景） */
 function makeRibbonTexture(){
@@ -3044,6 +3038,12 @@ let inspect=false,noteOpen=false,inspectT=0,scareScale=1.6;
 let inspectAz=0,inspectEl=0.16,inspectDist=5.6;
 const raycaster=new THREE.Raycaster();
 const _ndc=new THREE.Vector2();
+function rayHit(group){
+  if(!group||!group.visible)return false;
+  _ndc.set(mouseX/innerWidth*2-1,-(mouseY/innerHeight)*2+1);
+  raycaster.setFromCamera(_ndc,camera);
+  return raycaster.intersectObject(group,true).length>0;
+}
 const scareScreen={sx:-1e4,sy:-1e4};
 const noteScreen={sx:-1e4,sy:-1e4};
 const treeScreen={sx:-1e4,sy:-1e4};
@@ -3175,15 +3175,6 @@ function animate(){
     _uc[0].g*w[1]+_uc[1].g*w[2]+_uc[2].g*w[3]+_uc[3].g*w[4],
     _uc[0].b*w[1]+_uc[1].b*w[2]+_uc[2].b*w[3]+_uc[3].b*w[4]);
   underGlow.material.color.copy(_under);
-  if(mouseX>-1e3){
-    _mp.set(mouseX/innerWidth*2-1,-(mouseY/innerHeight)*2+1,0.5)
-      .unproject(camera).sub(camera.position).normalize().multiplyScalar(26).add(camera.position);
-    trail[0].position.copy(_mp);trail[0].visible=true;
-    for(let i=1;i<trailN;i++){trail[i].position.copy(trail[i-1].position);trail[i].visible=true;}
-    for(let i=0;i<trailN;i++)trail[i].material.opacity=0.20*(1-i/trailN);
-  }else{
-    for(const sp of trail){sp.visible=false;sp.material.opacity=0;}
-  }
   petalMat.uniforms.uOpacity.value=w[1]*0.9;
   fluffMat.uniforms.uOpacity.value=w[1]*0.55;
   pollenMat.uniforms.uOpacity.value=easeW(w[1])*0.7;
@@ -3440,7 +3431,7 @@ function animate(){
   for(const c of catInfo){ if(Math.hypot(mouseX-c.sx,mouseY-c.sy)<64){hoverCat=true;break;} }
   _ndc.set(mouseX/innerWidth*2-1,-(mouseY/innerHeight)*2+1);
   raycaster.setFromCamera(_ndc,camera);
-  const hoverBody=scarecrow.visible&&!inspect&&Math.hypot(mouseX-scareScreen.sx,mouseY-scareScreen.sy)<170;
+  const hoverBody=scarecrow.visible&&!inspect&&rayHit(scarecrow);
   const hoverNote=scarecrow.visible&&inspect&&Math.hypot(mouseX-noteScreen.sx,mouseY-noteScreen.sy)<150;
   canvas.style.cursor=(hoverCat||hoverBody||hoverNote)?'pointer':'grab';
   /* 脚印淡出 */
@@ -3890,12 +3881,12 @@ canvas.addEventListener('pointerdown',e=>{
   /* 两步彩蛋：先点稻草人进入检视特写，再点胸口纸条展开留笺（仅秋季可见时可点） */
   tappedEgg=false;
   if(scarecrow.visible){
-    const onBody=Math.hypot(mouseX-scareScreen.sx,mouseY-scareScreen.sy)<150;
-    const onNote=Math.hypot(mouseX-noteScreen.sx,mouseY-noteScreen.sy)<70;
-    if(!inspect&&onBody){inspect=true;inspectAz=Math.atan2(1.1,3.0);inspectEl=0.16;inspectDist=5.6;tappedEgg=true;}
-    else if(inspect&&onNote){openNote();tappedEgg=true;}
+    const onNote=inspect&&Math.hypot(mouseX-noteScreen.sx,mouseY-noteScreen.sy)<70;
+    const onBody=!inspect&&rayHit(scarecrow);
+    if(onBody){inspect=true;inspectAz=Math.atan2(1.1,3.0);inspectEl=0.16;inspectDist=5.6;tappedEgg=true;}
+    else if(onNote){openNote();tappedEgg=true;}
   }
-  if(xmasTree.visible&&Math.hypot(mouseX-treeScreen.sx,mouseY-treeScreen.sy)<72){openEgg();tappedEgg=true;}
+  if(xmasTree.visible&&rayHit(xmasTree)){openEgg();tappedEgg=true;}
   dragging=true;moved=0;lx=e.clientX;ly=e.clientY;
   canvas.classList.add('dragging');
   try{canvas.setPointerCapture(e.pointerId);}catch(_){}
