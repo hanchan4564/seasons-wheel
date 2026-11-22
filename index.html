@@ -3880,13 +3880,14 @@ canvas.addEventListener('pointerdown',e=>{
   }
   /* 两步彩蛋：先点稻草人进入检视特写，再点胸口纸条展开留笺（仅秋季可见时可点） */
   tappedEgg=false;
+  const hScare=rayHit(scarecrow),hTree=rayHit(xmasTree);
   if(scarecrow.visible){
     const onNote=inspect&&Math.hypot(mouseX-noteScreen.sx,mouseY-noteScreen.sy)<70;
-    const onBody=!inspect&&rayHit(scarecrow);
+    const onBody=!inspect&&hScare;
     if(onBody){inspect=true;inspectAz=Math.atan2(1.1,3.0);inspectEl=0.16;inspectDist=5.6;tappedEgg=true;}
     else if(onNote){openNote();tappedEgg=true;}
   }
-  if(xmasTree.visible&&rayHit(xmasTree)){openEgg();tappedEgg=true;}
+  if(xmasTree.visible&&hTree){openEgg();tappedEgg=true;}
   dragging=true;moved=0;lx=e.clientX;ly=e.clientY;
   canvas.classList.add('dragging');
   try{canvas.setPointerCapture(e.pointerId);}catch(_){}
