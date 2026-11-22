@@ -1454,6 +1454,7 @@ const seasonUniforms={
   uDroopA:{value:0},uDroopB:{value:0},
   uFlowerA:{value:0},uFlowerB:{value:0},
   uWind:{value:1},uDry:{value:0},uWinter:{value:0},
+  uWinterA:{value:0},uWinterB:{value:0},
   uCatA:{value:new THREE.Vector3()},uCatB:{value:new THREE.Vector3()},
   uImpact:{value:new THREE.Vector4(0,0,99,0)},
   uGust:{value:new THREE.Vector4(1,0,99,0)}
@@ -1542,7 +1543,8 @@ const grassMat=new THREE.ShaderMaterial({
   vertexShader:SEASON_GLSL+`
     attribute vec2 aOffset;attribute vec4 aData;attribute float aAngle;
     uniform float uWind;uniform float uDry;uniform float uWinter;
-    varying vec3 vColor;varying float vY;varying float vSeed;
+    uniform float uWinterA;uniform float uWinterB;
+    varying vec3 vColor;varying float vY;varying float vSeed;varying float vWinter;
     float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
     void main(){
       float m=seasonMask(aAngle,0.26+0.22*aData.z);
@@ -1550,19 +1552,22 @@ const grassMat=new THREE.ShaderMaterial({
       float droop=mix(uDroopA,uDroopB,m);
       vec3 base=mix(uBaseA,uBaseB,m);
       vec3 tip=mix(uTipA,uTipB,m);
+      /* 本地扇区冬季判定：只有指针扫到的冬季区域才挂霜，未扫到的旧季保持本色 */
+      float locWinter=mix(uWinterA,uWinterB,1.0-m);
+      vWinter=locWinter;
       tip=mix(tip,vec3(0.62,0.58,0.26),step(0.82,aData.z)*0.5*uDry);
       float rim=smoothstep(8.95,9.55,length(aOffset));
       float h=0.70*aData.x*hScale*(1.0+0.18*rim);
       /* 冬：绝大多数草叶被雪完全埋住，只留极少数极矮的草尖探出雪面，
          高度压低、数量减少，避免雪面上透出一根根枯草细线。 */
       float poke=step(0.97,h21(aOffset*1.31+7.7));
-      h*=mix(1.0,0.60+0.20*poke,uWinter);
+      h*=mix(1.0,0.60+0.20*poke,locWinter);
       float y=position.y;
       vec2 windDir=normalize(vec2(0.86,0.51));
       float wAmt=uWind*0.6;
       /* 阵风包络：长波缓摆带短波颤叶，整片草连成流动草浪 */
-      float sway=sin(uTime*1.10+aData.y+aOffset.x*0.40+aOffset.y*0.30)*0.095
-                +sin(uTime*0.70-(aOffset.x+aOffset.y)*0.25)*0.075
+      float sway=sin(uTime*1.10+aData.y+aOffset.x*0.40+aOffset.y*0.30)*0.110
+                +sin(uTime*0.70-(aOffset.x+aOffset.y)*0.25)*0.085
                 +sin(uTime*2.30+aData.y*2.0)*0.014;
       /* 阵风起伏：风来时成片草叶顺风压低，间隙回弹 */
       float gust=0.5+0.5*sin(uTime*0.45+dot(aOffset,windDir)*1.15);
@@ -1580,7 +1585,7 @@ const grassMat=new THREE.ShaderMaterial({
       float breathe=0.72+0.28*sin(uTime*0.55);
       /* 两道交叠的行进草浪：长波顺风推过去，短波斜向回卷，形成滚动律动 */
       vec2 crossDir=vec2(-windDir.y,windDir.x);
-      float w1=dot(aOffset,windDir)*2.2-uTime*(0.85+uWinter*0.45)+aData.y*0.40;
+      float w1=dot(aOffset,windDir)*2.2-uTime*(0.85+locWinter*0.45)+aData.y*0.40;
       float w2=dot(aOffset,crossDir)*3.4-uTime*1.25+aData.y*1.10;
       float swell=sin(w1)*0.7+sin(w2)*0.3;
       world.xz+=windDir*swell*0.30*y*y*wAmt*breathe;
@@ -1608,7 +1613,7 @@ const grassMat=new THREE.ShaderMaterial({
       float gLit=0.5+0.5*dot(aOffset/gLen,gL);
       col*=0.70+0.55*gLit;
       /* 冬：草叶褪成冷灰，再交给片元挂霜白，避免雪面透出一根根绿杆 */
-      col=mix(col,vec3(0.66,0.70,0.74),uWinter*0.55);
+      col=mix(col,vec3(0.66,0.70,0.74),locWinter*0.55);
       /* 保留季节饱和，只轻微去塑料感 */
       col*=0.96;
       col=mix(vec3(dot(col,vec3(0.30,0.55,0.15))),col,0.93);
@@ -1623,12 +1628,11 @@ const grassMat=new THREE.ShaderMaterial({
       gl_Position=projectionMatrix*modelViewMatrix*vec4(world,1.0);
     }`,
   fragmentShader:`
-    uniform float uWinter;
-    varying vec3 vColor;varying float vY;varying float vSeed;
+    varying vec3 vColor;varying float vY;varying float vSeed;varying float vWinter;
     void main(){
       vec3 col=vColor;
       /* 冬：探出雪面的草叶整体挂霜白，不再露出枯草的暗色细杆 */
-      float frost=smoothstep(0.15,0.85,vY)*uWinter;
+      float frost=smoothstep(0.15,0.85,vY)*vWinter;
       col=mix(col,vec3(0.86,0.91,1.00),frost);
       col+=vec3(0.05,0.06,0.08)*frost*0.16;
       gl_FragColor=vec4(col,1.0);
@@ -3207,7 +3211,7 @@ function animate(){
     lightTint[0].b*w[1]+lightTint[1].b*w[2]+lightTint[2].b*w[3]+lightTint[3].b*w[4]);
   key.color.copy(_tint);
   hemi.color.copy(_tint).lerp(new THREE.Color(0x39496b),0.55);
-  seasonUniforms.uWind.value=0.85+greenW*0.22+autumnW*0.45+winterW*0.35;
+  seasonUniforms.uWind.value=0.90+greenW*0.55+autumnW*0.45+winterW*0.35;
   _under.setRGB(
     _uc[0].r*w[1]+_uc[1].r*w[2]+_uc[2].r*w[3]+_uc[3].r*w[4],
     _uc[0].g*w[1]+_uc[1].g*w[2]+_uc[2].g*w[3]+_uc[3].g*w[4],
@@ -3254,6 +3258,8 @@ function animate(){
   hubDial.rotation.y=simTime*0.085;
   seasonUniforms.uDry.value=greenW+autumnW*0.3;
   seasonUniforms.uWinter.value=winterW;
+  seasonUniforms.uWinterA.value=A===4?1:0;
+  seasonUniforms.uWinterB.value=B===4?1:0;
   driftMat.uniforms.uW.value=winterW*(0.75+w[4]*0.35);
   drift.visible=winterW>0.02;
   /* 新增季节元素：秋叶铺地 / 冬霜花 / 春蝶 / 夏露珠 */
