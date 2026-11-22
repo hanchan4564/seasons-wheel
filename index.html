@@ -339,10 +339,10 @@ const FLOWER_COUNT=pc(2000,1000);
 /* 季节调色板：0 裸盘 1 春 2 夏 3 秋 4 冬 */
 const SEASONS=[
   {base:[0.02,0.03,0.02],tip:[0.03,0.04,0.03],h:0.0, droop:0.0, flower:0},
-  {base:[0.10,0.32,0.10],tip:[0.34,0.70,0.34],h:1.15,droop:0.10,flower:1},
-  {base:[0.05,0.24,0.06],tip:[0.22,0.52,0.16],h:1.45,droop:0.05,flower:0.02},
-  {base:[0.42,0.27,0.08],tip:[0.84,0.62,0.26],h:1.12,droop:0.50,flower:0},
-  {base:[0.17,0.18,0.16],tip:[0.50,0.47,0.36],h:0.62,droop:0.20,flower:0}
+  {base:[0.06,0.22,0.07],tip:[0.30,0.64,0.30],h:1.15,droop:0.10,flower:1},
+  {base:[0.03,0.17,0.04],tip:[0.22,0.52,0.16],h:1.45,droop:0.05,flower:0.02},
+  {base:[0.30,0.16,0.05],tip:[0.98,0.52,0.16],h:1.12,droop:0.50,flower:0},
+  {base:[0.30,0.34,0.40],tip:[0.78,0.83,0.92],h:0.62,droop:0.20,flower:0}
 ];
 const SEASON_META=[
   {ch:'春',en:'SPRING',poem:'草木萌发 · 星野初醒'},
@@ -1602,12 +1602,19 @@ const grassMat=new THREE.ShaderMaterial({
       col=mix(col,col*vec3(0.84,1.02,1.14),smoothstep(0.62,0.95,hv)*0.55);
       float hw=h21(floor(aOffset*0.6)+9.1);
       col=mix(col,col*vec3(1.12,1.03,0.80),smoothstep(0.66,0.96,hw)*0.45);
-      /* 冬：草叶褪成枯灰，再交给片元挂霜白，避免雪面透出一根根绿杆 */
-      col=mix(col,vec3(0.72,0.74,0.72),uWinter*0.65);
-      /* 压一点亮度、去掉塑料感的饱和 */
-      col*=0.92;
-      col=mix(vec3(dot(col,vec3(0.30,0.55,0.15))),col,0.86);
-      col*=mix(0.42,1.0,smoothstep(0.0,0.55,y));
+      /* 主光方向明暗：迎光面提亮、背光面压深，草甸带出圆润体积 */
+      vec2 gL=normalize(vec2(0.78,0.62));
+      float gLen=max(length(aOffset),0.001);
+      float gLit=0.5+0.5*dot(aOffset/gLen,gL);
+      col*=0.70+0.55*gLit;
+      /* 冬：草叶褪成冷灰，再交给片元挂霜白，避免雪面透出一根根绿杆 */
+      col=mix(col,vec3(0.66,0.70,0.74),uWinter*0.55);
+      /* 保留季节饱和，只轻微去塑料感 */
+      col*=0.96;
+      col=mix(vec3(dot(col,vec3(0.30,0.55,0.15))),col,0.93);
+      /* 根部压深、叶尖提亮拉出层次；叶尖再叠一层柔亮高光 */
+      col*=mix(0.32,1.05,smoothstep(0.0,0.6,y));
+      col+=tip*smoothstep(0.55,1.0,y)*0.10;
       /* 季节交替的"生长锋面"：指针扫过处草尖泛起一层新季微光 */
       float dd=abs(mod(aAngle-uPointer+3.14159265,6.28318530718)-3.14159265);
       float front=exp(-dd*dd*520.0);
