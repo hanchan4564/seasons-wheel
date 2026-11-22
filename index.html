@@ -2474,8 +2474,8 @@ function ringPos(minR,maxR){const a=Math.random()*TAU,r=minR+Math.random()*(maxR
 
 const groundProps=new THREE.Group();
 {
-  const pebN=pc(12,7),mushN=pc(7,4),berryN=pc(6,4);
-  const pebM=dmk(0x8b93a6),stemM=dmk(0xe8dcc0),capM=dmk(0xc9574b),berryM=dmk(0xd8453c);
+  const pebN=pc(18,10),mushN=pc(10,6),berryN=pc(9,5),flwN=pc(14,8);
+  const pebM=dmk(0x8b93a6),stemM=dmk(0xe8dcc0),capM=dmk(0xc9574b),berryM=dmk(0xd8453c),flwM=dmk(0xf3e6c8),flwC=dmk(0xe89aa0);
   for(let i=0;i<pebN;i++){
     const [x,z]=ringPos(2.4,8.6);
     const p=new THREE.Mesh(new THREE.SphereGeometry(0.07,10,8),pebM);
@@ -2495,14 +2495,22 @@ const groundProps=new THREE.Group();
       b.position.set(x+(k-1)*0.05,0.05,z+((k%2)-0.5)*0.05);groundProps.add(b);
     }
   }
+  for(let i=0;i<flwN;i++){
+    const [x,z]=ringPos(2.8,8.4);
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.016,0.14,6),stemM);
+    stem.position.set(x,0.07,z);groundProps.add(stem);
+    const pet=new THREE.Mesh(new THREE.SphereGeometry(0.045,8,6),i%2?flwM:flwC);
+    pet.scale.y=0.5;pet.position.set(x,0.15,z);groundProps.add(pet);
+  }
 }
 scene.add(groundProps);
 
-/* 动物贴图精灵：秋松鼠 / 冬麻雀 / 夏蜓 */
+/* 动物贴图精灵：秋松鼠 / 冬麻雀 / 夏蜓；抬高避免被高草遮挡，贴图始终压在草叶之上 */
 function makeAnimal(url,h){
-  const mat=new THREE.SpriteMaterial({transparent:true,depthWrite:false,fog:false});
+  const mat=new THREE.SpriteMaterial({transparent:true,depthWrite:false,depthTest:false,fog:false});
   const sp=new THREE.Sprite(mat);
   sp.center.set(0.5,0);
+  sp.renderOrder=20;
   new THREE.TextureLoader().load(url,t=>{
     t.encoding=THREE.sRGBEncoding;t.minFilter=THREE.LinearFilter;t.generateMipmaps=false;
     const ar=t.image.width/t.image.height;
@@ -2511,33 +2519,48 @@ function makeAnimal(url,h){
   sp.scale.set(h,h,1);
   return sp;
 }
+function makeShadow(){
+  const m=new THREE.Mesh(new THREE.CircleGeometry(0.24,18),dmk(0x141c2a,{opacity:0.26}));
+  m.rotation.x=-Math.PI/2;m.position.y=0.02;m.renderOrder=1;return m;
+}
 const squirrel=makeAnimal('assets/animal/squirrel.webp',1.0);
-squirrel.position.set(1.9,0.02,1.9);squirrel.visible=false;scene.add(squirrel);
+squirrel.position.set(1.9,0.14,1.9);squirrel.visible=false;scene.add(squirrel);
+const squirrelSh=makeShadow();squirrelSh.position.set(1.9,0.02,1.9);scene.add(squirrelSh);
 const sparrow=makeAnimal('assets/animal/sparrow.webp',0.70);
-sparrow.position.set(-1.6,0.02,1.4);sparrow.visible=false;scene.add(sparrow);
+sparrow.position.set(-1.6,0.14,1.4);sparrow.visible=false;scene.add(sparrow);
+const sparrowSh=makeShadow();sparrowSh.position.set(-1.6,0.02,1.4);scene.add(sparrowSh);
 const dragonfly=makeAnimal('assets/animal/dragonfly.webp',0.70);
 dragonfly.center.set(0.5,0.5);
 dragonfly.position.set(3.0,0.95,-1.2);dragonfly.visible=false;scene.add(dragonfly);
 function decoUpdate(t,sdt,w1,w2,w3,w4){
   groundProps.visible=true;
-  /* 夏蜓：绕荷塘小圈缓飞 */
+  /* 夏蜓：绕荷塘小圈缓飞，随转向轻压机身 */
   dragonfly.visible=w2>0.03;
   if(dragonfly.visible){
     const a=t*0.5;
     dragonfly.position.set(3.0+Math.cos(a)*0.7,0.95+Math.sin(t*1.1)*0.14,-1.2+Math.sin(a)*0.7);
+    dragonfly.rotation.z=Math.sin(t*0.5)*0.18;
     dragonfly.material.opacity=Math.min(1,w2);
   }
+  /* 秋松鼠：间歇轻跳，蓬尾随身体轻摆 */
   squirrel.visible=w3>0.03;
   if(squirrel.visible){
-    squirrel.position.y=0.02+Math.abs(Math.sin(t*2.2))*0.03;
-    squirrel.rotation.z=Math.sin(t*1.3)*0.06;
+    const hop=Math.pow(Math.max(0,Math.sin(t*2.6)),2)*0.14;
+    squirrel.position.y=0.14+hop;
+    squirrel.rotation.z=Math.sin(t*1.3)*0.07;
     squirrel.material.opacity=Math.min(1,w3);
+    squirrelSh.position.set(squirrel.position.x,0.02,squirrel.position.z);
+    squirrelSh.scale.setScalar(1-hop*1.6);
   }
+  /* 冬麻雀：双脚小跳，点头晃身 */
   sparrow.visible=w4>0.03;
   if(sparrow.visible){
-    sparrow.position.y=0.02+Math.abs(Math.sin(t*2.6))*0.025;
-    sparrow.rotation.z=Math.sin(t*1.1)*0.05;
+    const hop=Math.pow(Math.max(0,Math.sin(t*3.4)),2)*0.10;
+    sparrow.position.y=0.14+hop;
+    sparrow.rotation.z=Math.sin(t*1.7)*0.06;
     sparrow.material.opacity=Math.min(1,w4);
+    sparrowSh.position.set(sparrow.position.x,0.02,sparrow.position.z);
+    sparrowSh.scale.setScalar(1-hop*1.6);
   }
 }
 
@@ -2682,27 +2705,8 @@ function localF(x,z,p){
   const aa=((Math.atan2(z,x)%TAU)+TAU)%TAU;
   return 1-smooth01((aa-(p-0.30))/0.60);
 }
-/* 贴图猫：sit/crouch/leap 三帧随动作循环切换，呼吸/跟随/点击动作保留 */
-/* 裁切猫帧透明边距：按内容包围盒归一，坐姿/扑跃等动作的猫体大小保持一致 */
-function measureCatTex(tex){
-  const img=tex.image;
-  if(!img||!img.width)return;
-  const c=document.createElement('canvas');c.width=img.width;c.height=img.height;
-  const g=c.getContext('2d');g.drawImage(img,0,0);
-  let d;try{d=g.getImageData(0,0,c.width,c.height).data;}catch(e){return;}
-  let x0=c.width,y0=c.height,x1=0,y1=0,hit=false;
-  for(let y=0;y<c.height;y++){
-    for(let x=0;x<c.width;x++){
-      if(d[(y*c.width+x)*4+3]>14){hit=true;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
-    }
-  }
-  if(!hit)return;
-  const iw=img.width,ih=img.height;
-  tex.repeat.set((x1-x0)/iw,(y1-y0)/ih);
-  tex.offset.set(x0/iw,1-(y1+1)/ih);
-  tex.userData.ar=(x1-x0)/(y1-y0);
-  tex.needsUpdate=true;
-}
+/* 贴图猫：sit/alert/blink/groom/knead/crouch/leap 随动作循环切换；按坐姿基准等比归一，切姿势不忽大忽小 */
+const POSE_SCALE={sit:1,alert:0.98,blink:1,groom:1.08,knead:1,crouch:1.18,leap:1.22};
 function makeCatSprite(frames){
   const texs={};
   const mat=new THREE.SpriteMaterial({transparent:true,depthWrite:false});
@@ -2710,21 +2714,19 @@ function makeCatSprite(frames){
   const sp=new THREE.Sprite(mat);
   sp.center.set(0.5,0.125);
   const t0=new THREE.TextureLoader().load(frames.sit,t=>{
-    measureCatTex(t);
-    sp.userData.ar0=t.userData.ar||(t.image.width/t.image.height);
+    sp.userData.k=1.95/t.image.height;
   });
   t0.encoding=THREE.sRGBEncoding;t0.minFilter=THREE.LinearFilter;t0.generateMipmaps=false;
   texs.sit=t0;mat.map=t0;
   let pose='sit';
-  for(const k in frames){
-    if(k==='sit')continue;
+  for(const key in frames){
+    if(key==='sit')continue;
     const holder={ready:false,tex:null};
-    texs[k]=holder;
-    new THREE.TextureLoader().load(frames[k],t=>{
+    texs[key]=holder;
+    new THREE.TextureLoader().load(frames[key],t=>{
       t.encoding=THREE.sRGBEncoding;t.minFilter=THREE.LinearFilter;t.generateMipmaps=false;
-      measureCatTex(t);
       holder.tex=t;holder.ready=true;
-      if(pose===k){mat.map=t;mat.needsUpdate=true;}
+      if(pose===key){mat.map=t;mat.needsUpdate=true;}
     });
   }
   return {sprite:sp,
@@ -3327,11 +3329,11 @@ function animate(){
     const e=camera.matrixWorld.elements;
     const dot=dx*e[0]+dz*e[2];
     const _map=cat.sprite.material.map;
-    const _ar=(_map&&_map.userData.ar)||(cat.sprite.userData.ar0||0.94);
-    /* 尺寸锁定：高度恒定，按内容宽高比收宽度，切姿势时猫体大小不跳变 */
-    const AR0=cat.sprite.userData.ar0||0.94,catH=1.95;
-    let sW=catH*_ar;if(sW>catH*AR0)sW=catH*AR0;
-    const sH=catH;
+    const _img=_map&&_map.image;
+    const iw=_img?_img.width:320, ih=_img?_img.height:340;
+    const k=cat.sprite.userData.k||(1.95/340);
+    const pf=POSE_SCALE[poseNow]||1;
+    const sW=iw*k*pf, sH=ih*k*pf;
     cat.sprite.scale.set(sW*(dot<0?-1:1),sH,1);
     cat.sprite.material.rotation=Math.sin(simTime*0.9+ci*1.7)*0.03-l*0.08+flickK*0.10*Math.sin(simTime*34);
     const knead=Math.sin(simTime*2.2+ci*1.7)*0.012*(1-l);
