@@ -2633,8 +2633,8 @@ function makeCatSprite(frames){
     setPose(name){ if(pose===name)return; pose=name; const h=texs[name]; mat.map=(h&&h.ready)?h.tex:texs.sit; mat.needsUpdate=true; },
     draw(){}};
 }
-const catWhite=makeCatSprite({alert:'assets/cat/white-alert.png',groom:'assets/cat/white-groom.png',knead:'assets/cat/white-knead.png',blink:'assets/cat/white-blink.png',sit:'assets/cat/white-sit.png',crouch:'assets/cat/white-crouch.png',leap:'assets/cat/white-leap.png'});
-const catBlack=makeCatSprite({alert:'assets/cat/black-alert.png',groom:'assets/cat/black-groom.png',knead:'assets/cat/black-knead.png',blink:'assets/cat/black-blink.png',sit:'assets/cat/black-sit.png',crouch:'assets/cat/black-crouch.png',leap:'assets/cat/black-leap.png'});
+const catWhite=makeCatSprite({alert:'assets/cat/white-alert.webp',groom:'assets/cat/white-groom.webp',knead:'assets/cat/white-knead.webp',blink:'assets/cat/white-blink.webp',sit:'assets/cat/white-sit.webp',crouch:'assets/cat/white-crouch.webp',leap:'assets/cat/white-leap.webp'});
+const catBlack=makeCatSprite({alert:'assets/cat/black-alert.webp',groom:'assets/cat/black-groom.webp',knead:'assets/cat/black-knead.webp',blink:'assets/cat/black-blink.webp',sit:'assets/cat/black-sit.webp',crouch:'assets/cat/black-crouch.webp',leap:'assets/cat/black-leap.webp'});
 scene.add(catWhite.sprite,catBlack.sprite);
 /* 接触阴影 */
 function makeShadow(){
