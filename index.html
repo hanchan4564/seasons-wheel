@@ -436,15 +436,18 @@ const bandNormal=(()=>{
 })();
 const skyMat=new THREE.ShaderMaterial({
   side:THREE.BackSide,depthWrite:false,
-  uniforms:{uNb:{value:bandNormal},uTheme:{value:0},uSkyA:{value:new THREE.Color(0x9ec8ff)},uSkyB:{value:new THREE.Color(0x2a4a86)}},
+  uniforms:{uNb:{value:bandNormal},uTheme:{value:0},uSkyA:{value:new THREE.Color(0x9ec8ff)},uSkyB:{value:new THREE.Color(0x2a4a86)},
+  uTexS:{value:new THREE.Texture()},uTexSu:{value:new THREE.Texture()},uTexA:{value:new THREE.Texture()},uTexW:{value:new THREE.Texture()},
+  uW:{value:new THREE.Vector4(1,0,0,0)}},
   vertexShader:`
-    varying vec3 vDir;
+    varying vec3 vDir;varying vec2 vUv;
     void main(){
-      vDir=position;
+      vDir=position;vUv=uv;
       gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
     }`,
   fragmentShader:`
-    uniform vec3 uNb;uniform float uTheme;uniform vec3 uSkyA;uniform vec3 uSkyB;varying vec3 vDir;
+    uniform vec3 uNb;uniform float uTheme;uniform vec3 uSkyA;uniform vec3 uSkyB;
+    uniform sampler2D uTexS;uniform sampler2D uTexSu;uniform sampler2D uTexA;uniform sampler2D uTexW;uniform vec4 uW;varying vec3 vDir;varying vec2 vUv;
     float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
     float noise(vec3 p){
       vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
@@ -461,11 +464,9 @@ const skyMat=new THREE.ShaderMaterial({
     void main(){
       vec3 dir=normalize(vDir);
       if(uTheme>0.5){
-        float up=smoothstep(-0.02,0.12,dir.y);
-        vec3 col=mix(uSkyA,uSkyB,up);
-        float billow=fbm(dir*2.8+vec3(4.0));
-        col+=vec3(1.0,1.0,1.0)*smoothstep(0.55,0.85,billow)*0.16*up;
-        col-=vec3(0.10,0.10,0.12)*smoothstep(0.5,0.2,billow)*0.10;
+        vec3 col=uW.x*texture2D(uTexS,vUv).rgb+uW.y*texture2D(uTexSu,vUv).rgb+uW.z*texture2D(uTexA,vUv).rgb+uW.w*texture2D(uTexW,vUv).rgb;
+        float up=smoothstep(-0.05,0.15,dir.y);
+        col*=0.92+0.12*up;
         gl_FragColor=vec4(col,1.0);
         return;
       }
@@ -579,56 +580,17 @@ const starMat=new THREE.ShaderMaterial({
 const starPts=new THREE.Points(starGeo,starMat);scene.add(starPts);
 
 /* ===== 山河四季：程序化风光背景（远山 / 云），主题1启用 ===== */
-const scenery=new THREE.Group();scenery.visible=false;scene.add(scenery);
-const ridgeMats=[],ridgeMeshes=[],cloudMats=[],clouds=[];
-function makeRidge(z,baseY,height,seg,seed,op){
-  const pos=new Float32Array((seg+1)*2*3);
-  const idx=[];
-  let k=0;
-  for(let i=0;i<=seg;i++){
-    const x=-60+120*i/seg;
-    const wave=0.5+0.5*Math.sin(i*0.5+seed)+0.30*Math.sin(i*1.27+seed*2.0);
-    const y=baseY+height*wave;
-    pos[k++]=x;pos[k++]=y;pos[k++]=z;
-    pos[k++]=x;pos[k++]=baseY-2;pos[k++]=z;
-  }
-  for(let i=0;i<seg;i++){const a=i*2,b=a+1,c=a+2,d=a+3;idx.push(a,b,c,b,d,c);}
-  const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  geo.setIndex(idx);
-  const mat=new THREE.MeshBasicMaterial({color:0x5a7a6a,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide,fog:false});
-  const mesh=new THREE.Mesh(geo,mat);mesh.frustumCulled=false;
-  scenery.add(mesh);ridgeMats.push(mat);ridgeMeshes.push(mesh);
-  return mesh;
-}
-makeRidge(-40,0.0,2.6,44,0.0,0.5);
-makeRidge(-33,0.0,1.9,38,2.1,0.72);
-makeRidge(-26,0.0,1.2,32,4.2,0.95);
-function makeCloud(x,y,z,s){
-  const geo=new THREE.CircleGeometry(1,22);
-  const mat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.42,depthWrite:false});
-  const m=new THREE.Mesh(geo,mat);
-  m.position.set(x,y,z);m.scale.set(s*1.9,s*0.66,1);
-  scenery.add(m);cloudMats.push(mat);clouds.push(m);
-}
-makeCloud(-18,9,-34,4.2);
-makeCloud(6,11,-36,5.0);
-makeCloud(22,8,-33,3.6);
-makeCloud(-2,13,-38,4.4);
-
-/* 林线：盘后一排树丛剪影，随季节变色 */
-const treeMats=[];
-(function makeTreeLine(){
-  const N=26,crownGeo=new THREE.ConeGeometry(0.30,0.8,6);
-  for(let i=0;i<N;i++){
-    const a=Math.PI*(0.12+0.76*i/(N-1)),R=11.3;
-    const x=Math.cos(a)*R,z=-Math.sin(a)*R;
-    const h=0.5+Math.random()*0.5;
-    const mat=new THREE.MeshBasicMaterial({color:0x2f4d2a,fog:false});
-    const m=new THREE.Mesh(crownGeo,mat);
-    m.position.set(x,0.4*h,z);m.scale.setScalar(h);
-    scenery.add(m);treeMats.push(mat);
-  }
+/* 山河主题：四季写实风光贴图，贴入天球背景按权重交叉渐变 */
+(function loadBgTextures(){
+  const files=['spring.webp','summer.webp','autumn.webp','winter.webp'];
+  const keys=['uTexS','uTexSu','uTexA','uTexW'];
+  const loader=new THREE.TextureLoader();
+  files.forEach((f,i)=>{
+    loader.load('assets/background/'+f,t=>{
+      t.encoding=THREE.sRGBEncoding;t.minFilter=THREE.LinearFilter;t.generateMipmaps=false;
+      skyMat.uniforms[keys[i]].value=t;
+    });
+  });
 })();
 
 /* 亮星：十字芒刺 + 光晕 */
@@ -3039,7 +3001,6 @@ let theme=0;
 function applyTheme(t){
   theme=t;
   skyMat.uniforms.uTheme.value=t;
-  scenery.visible=t===1;
   const night=t===0;
   starPts.visible=night;glintPts.visible=night;
   fallLines.visible=night;headPts.visible=night;horPts.visible=night;
@@ -3368,26 +3329,10 @@ function animate(){
   seasonUniforms.uWinter.value=winterW;
   skyMat.uniforms.uTheme.value=theme;
   if(theme===1){
-    _cA.setRGB(0,0,0);_cB.setRGB(0,0,0);_cR.setRGB(0,0,0);
-    for(let i=0;i<5;i++){
-      _cA.r+=w[i]*SKY_SEASONS[i][0];_cA.g+=w[i]*SKY_SEASONS[i][1];_cA.b+=w[i]*SKY_SEASONS[i][2];
-      _cB.r+=w[i]*SKY_SEASONS[i][3];_cB.g+=w[i]*SKY_SEASONS[i][4];_cB.b+=w[i]*SKY_SEASONS[i][5];
-      _cR.r+=w[i]*RIDGE_SEASONS[i][0];_cR.g+=w[i]*RIDGE_SEASONS[i][1];_cR.b+=w[i]*RIDGE_SEASONS[i][2];
-    }
-    skyMat.uniforms.uSkyA.value.copy(_cA);
-    skyMat.uniforms.uSkyB.value.copy(_cB);
-    ridgeMats[2].color.copy(_cR);
-    ridgeMats[1].color.copy(_cR).lerp(_cA,0.25);
-    ridgeMats[0].color.copy(_cR).lerp(_cA,0.45);
-    for(const tm of treeMats)tm.color.copy(_cR).lerp(_cA,0.15);
-    scene.fog.color.copy(_cA);
+    skyMat.uniforms.uW.value.set(w[1]+w[0],w[2],w[3],w[4]);
+    scene.fog.color.setHex(0xbfd4e6);
     key.color.setRGB(1.0,0.97,0.90);key.intensity=1.25;
     hemi.color.setRGB(0.86,0.91,1.0);hemi.intensity=0.9;
-    for(let i=0;i<clouds.length;i++){
-      const c=clouds[i];
-      c.position.x+=Math.sin(simTime*0.06+i*1.3)*0.006;
-      if(c.position.x>34)c.position.x=-34;if(c.position.x<-34)c.position.x=34;
-    }
   }else{
     scene.fog.color.setHex(0x02060f);
     key.intensity=0.95;hemi.intensity=0.6;
