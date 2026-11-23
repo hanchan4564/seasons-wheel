@@ -541,38 +541,44 @@ const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat);scene.a
 const bgGroup=new THREE.Group();scene.add(bgGroup);
 const folTex={};
 ['tree','bush','grass'].forEach(function(k){const t=new THREE.TextureLoader().load('assets/foliage/'+k+'.webp');t.encoding=THREE.sRGBEncoding;folTex[k]=t;});
-/* 秋/冬去绿变体：Canvas 重算像素，把绿色冠叶分别转金褐、霜白，避免相乘染色压不住绿底 */
+/* 秋/冬去绿变体：Canvas 重算像素，把绿色冠叶分别转金褐、霜白；灌丛/草贴图底部深色枝干根提亮并入叶色，避免俯视显黑斑 */
 const folVar={};
-function recolorTex(img,mode){
+function recolorTex(img,mode,kind){
   const w=img.width,h=img.height;
   const cv=document.createElement('canvas');cv.width=w;cv.height=h;
   const cx=cv.getContext('2d');cx.drawImage(img,0,0);
-  if(mode!=='orig'){
-    const d=cx.getImageData(0,0,w,h),p=d.data;
-    for(let i=0;i<p.length;i+=4){
-      const r=p[i],g=p[i+1],b=p[i+2],a=p[i+3];
-      if(a<8)continue;
-      const gdom=g>r*1.05&&g>b*1.05;
+  const d=cx.getImageData(0,0,w,h),p=d.data;
+  for(let i=0;i<p.length;i+=4){
+    const r=p[i],g=p[i+1],b=p[i+2],a=p[i+3];
+    if(a<8)continue;
+    const y=Math.floor((i/4)/w);
+    const lum=(r+g+b)/3;
+    const gdom=g>r*1.05&&g>b*1.05;
+    const darkRoot=(kind==='bush'||kind==='grass')&&y>h*0.30&&lum<125;
+    if(darkRoot){
+      p[i]=Math.min(255,r*1.8+25);
+      p[i+1]=Math.min(255,g*1.8+25);
+      p[i+2]=Math.min(255,b*1.6+18);
+    }else if(mode!=='orig'){
       if(mode==='aut'){
         if(gdom){p[i]=Math.min(255,r*1.15+g*0.35);p[i+1]=g*0.62;p[i+2]=b*0.35;}
       }else{
-        const lum=(r+g+b)/3;
         if(lum<70){p[i]=r*0.55;p[i+1]=g*0.55;p[i+2]=b*0.6;}
         else if(gdom){const t=0.8;const R=209,G=209,B=225;p[i]=r+(R-r)*t;p[i+1]=g+(G-g)*t;p[i+2]=b+(B-b)*t;}
       }
     }
-    cx.putImageData(d,0,0);
   }
+  cx.putImageData(d,0,0);
   const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;return t;
 }
-function loadVar(key,url){
+function loadVar(key,url,kind){
   const img=new Image();
-  img.onload=()=>{folVar[key]={orig:recolorTex(img,'orig'),aut:recolorTex(img,'aut'),win:recolorTex(img,'win')};};
+  img.onload=()=>{folVar[key]={orig:recolorTex(img,'orig',kind),aut:recolorTex(img,'aut',kind),win:recolorTex(img,'win',kind)};};
   img.src=url;
 }
-['tree','bush','grass'].forEach(k=>loadVar('fol.'+k,'assets/foliage/'+k+'.webp'));
-loadVar('mtn','assets/foliage/mountain.webp');
-loadVar('tl','assets/foliage/treeline.webp');
+['tree','bush','grass'].forEach(k=>loadVar('fol.'+k,'assets/foliage/'+k+'.webp',k));
+loadVar('mtn','assets/foliage/mountain.webp','mtn');
+loadVar('tl','assets/foliage/treeline.webp','tl');
 
 /* 背景承接地面：与盘面同构的指针扇区渐变，已扫方位铺新季、未扫留旧季 */
 const groundGeo=new THREE.RingGeometry(10.6,30,96,1);
