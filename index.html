@@ -609,6 +609,16 @@ for(let i=0;i<MIST_N;i++){
   ms.userData.spd=rndRange(0.05,0.10);
   bgGroup.add(ms);bgMist.push(ms);
 }
+/* 远景连绵林线：树海横带压在远山之前，补足背景层次 */
+const treelineTex=new THREE.TextureLoader().load('assets/foliage/treeline.webp');
+treelineTex.encoding=THREE.sRGBEncoding;
+const tlGeo=new THREE.PlaneGeometry(46,7);
+tlGeo.translate(0,3.5,0);
+const tlMat=new THREE.MeshBasicMaterial({map:treelineTex,transparent:true,depthWrite:false,fog:false,opacity:0.92});
+const bgTreeline=new THREE.Mesh(tlGeo,tlMat);
+bgTreeline.frustumCulled=false;
+bgTreeline.position.set(Math.cos(oppAz)*20,0,Math.sin(oppAz)*20);
+bgGroup.add(bgTreeline);
 const folTint=[
   new THREE.Color(1.00,0.95,0.92),
   new THREE.Color(0.93,1.00,0.88),
@@ -630,6 +640,7 @@ function updateFoliageTint(wv){
 }
 function animateFoliage(time){
   bgMountain.lookAt(camera.position.x,0,camera.position.z);
+  bgTreeline.lookAt(camera.position.x,0,camera.position.z);
   for(const m of bgFoliage){
     m.lookAt(camera.position.x,0,camera.position.z);
     const s=m.userData.seed;
