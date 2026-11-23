@@ -541,6 +541,38 @@ const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat);scene.a
 const bgGroup=new THREE.Group();scene.add(bgGroup);
 const folTex={};
 ['tree','bush','grass'].forEach(function(k){const t=new THREE.TextureLoader().load('assets/foliage/'+k+'.webp');t.encoding=THREE.sRGBEncoding;folTex[k]=t;});
+/* 秋/冬去绿变体：Canvas 重算像素，把绿色冠叶分别转金褐、霜白，避免相乘染色压不住绿底 */
+const folVar={};
+function recolorTex(img,mode){
+  const w=img.width,h=img.height;
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+  const cx=cv.getContext('2d');cx.drawImage(img,0,0);
+  if(mode!=='orig'){
+    const d=cx.getImageData(0,0,w,h),p=d.data;
+    for(let i=0;i<p.length;i+=4){
+      const r=p[i],g=p[i+1],b=p[i+2],a=p[i+3];
+      if(a<8)continue;
+      const gdom=g>r*1.05&&g>b*1.05;
+      if(mode==='aut'){
+        if(gdom){p[i]=Math.min(255,r*1.15+g*0.35);p[i+1]=g*0.62;p[i+2]=b*0.35;}
+      }else{
+        const lum=(r+g+b)/3;
+        if(lum<70){p[i]=r*0.55;p[i+1]=g*0.55;p[i+2]=b*0.6;}
+        else if(gdom){const t=0.8;const R=209,G=209,B=225;p[i]=r+(R-r)*t;p[i+1]=g+(G-g)*t;p[i+2]=b+(B-b)*t;}
+      }
+    }
+    cx.putImageData(d,0,0);
+  }
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;return t;
+}
+function loadVar(key,url){
+  const img=new Image();
+  img.onload=()=>{folVar[key]={orig:recolorTex(img,'orig'),aut:recolorTex(img,'aut'),win:recolorTex(img,'win')};};
+  img.src=url;
+}
+['tree','bush','grass'].forEach(k=>loadVar('fol.'+k,'assets/foliage/'+k+'.webp'));
+loadVar('mtn','assets/foliage/mountain.webp');
+loadVar('tl','assets/foliage/treeline.webp');
 
 /* 背景承接地面：仅盘远侧隐约铺展，外缘羽化入天空，低饱和雾草色 */
 const groundGeo=new THREE.RingGeometry(10.6,30,96,1);
@@ -565,17 +597,18 @@ const groundMat=new THREE.ShaderMaterial({
 });
 const bgGround=new THREE.Mesh(groundGeo,groundMat);bgGround.position.y=0.02;bgGroup.add(bgGround);
 
-/* 环绕河湾：一条随山势蜿蜒的浅河铺在盘外草甸上，水面反光随季节流转 */
+/* 远侧蜿蜒湖湾：只铺半段水系、两端收窄成溪口，不绕整周；四季分化为春溪/夏湖/秋涧/冬冰 */
 const riverGeo=new THREE.BufferGeometry();
 {
-  const RN=128,rPos=[],rUv=[],rIdx=[];
+  const RN=96,SEG=Math.PI*1.2,rPos=[],rUv=[],rIdx=[];
   for(let i=0;i<=RN;i++){
-    const th=i/RN*TAU;
-    const rc=21.0+1.8*Math.sin(th*3+1.0);
-    const hw=1.15;
+    const t=i/RN,th=t*SEG;
+    const rc=20.5+1.6*Math.sin(th*2.0+0.5);
+    const end=Math.min(1,t/0.16,(1-t)/0.16);
+    const hw=1.15*Math.max(0.12,end);
     const ri=rc-hw,ro=rc+hw;
     rPos.push(Math.cos(th)*ri,0.03,Math.sin(th)*ri, Math.cos(th)*ro,0.03,Math.sin(th)*ro);
-    rUv.push(i/RN,0, i/RN,1);
+    rUv.push(t,0, t,1);
     if(i<RN){const a=i*2,b=a+1,c=a+2,d=a+3;rIdx.push(a,c,b,b,c,d);}
   }
   riverGeo.setAttribute('position',new THREE.Float32BufferAttribute(rPos,3));
@@ -589,17 +622,22 @@ const riverMat=new THREE.ShaderMaterial({
   fragmentShader:`
     uniform vec4 uW;uniform float uTime;varying vec2 vUv;
     void main(){
-      vec3 cS=vec3(0.18,0.40,0.42),cSu=vec3(0.10,0.30,0.40),cA=vec3(0.32,0.34,0.33),cW=vec3(0.62,0.70,0.76);
+      vec3 cS=vec3(0.20,0.46,0.44),cSu=vec3(0.10,0.32,0.42),cA=vec3(0.36,0.34,0.28),cW=vec3(0.70,0.78,0.84);
       vec3 col=uW.x*cS+uW.y*cSu+uW.z*cA+uW.w*cW;
-      float rip=sin(vUv.x*36.0-uTime*1.6)*0.5+0.5;
-      col+=vec3(0.32,0.38,0.38)*rip*0.32;
-      float edge=smoothstep(0.0,0.18,vUv.y)*smoothstep(1.0,0.82,vUv.y);
-      gl_FragColor=vec4(col,0.85*edge);
+      float calm=uW.y,flow=uW.x+uW.z,ice=uW.w;
+      float rip=sin(vUv.x*40.0-uTime*1.8)*0.5+0.5;
+      float amp=0.30*calm+0.55*flow+0.10*ice;
+      col+=vec3(0.32,0.38,0.38)*rip*amp;
+      float crack=smoothstep(0.965,0.995,abs(sin(vUv.x*18.0+vUv.y*11.0)));
+      col+=vec3(0.55,0.62,0.68)*crack*ice*0.5;
+      float edge=smoothstep(0.0,0.12,vUv.x)*smoothstep(1.0,0.88,vUv.x);
+      float a=edge*(0.70+0.18*calm+0.12*ice);
+      gl_FragColor=vec4(col,a);
     }`
 });
 const bgRiver=new THREE.Mesh(riverGeo,riverMat);bgRiver.renderOrder=1;bgGroup.add(bgRiver);
 
-/* 远景飞鸟群：绕盘盘旋的雀鸟，季节转冷时渐疏 */
+/* 雀鸟群：一部分绕盘盘旋振翅，一部分栖在中远景枝头/灌顶，偶发抖翅；转冬渐疏 */
 const birdTex=new THREE.TextureLoader().load('assets/animal/sparrow.webp');
 birdTex.encoding=THREE.sRGBEncoding;
 const bgBirds=[];
@@ -607,10 +645,19 @@ const BIRD_N=pc(14,8);
 for(let i=0;i<BIRD_N;i++){
   const mat=new THREE.SpriteMaterial({map:birdTex,transparent:true,depthWrite:false,fog:false,opacity:0.75});
   const b=new THREE.Sprite(mat);
-  const rad=rndRange(14.0,19.0),ang=Math.random()*TAU,y=rndRange(5.0,7.5),h=rndRange(0.7,1.05);
-  b.scale.set(h*1.3,h,1);
-  b.position.set(Math.cos(ang)*rad,y,Math.sin(ang)*rad);
-  b.userData={ang,rad,y,spd:rndRange(0.05,0.12),seed:Math.random()*TAU,amp:rndRange(0.3,0.7),h};
+  const fly=Math.random()<0.6;
+  const ang=Math.random()*TAU;
+  if(fly){
+    const rad=rndRange(15.0,20.0),y=rndRange(5.0,8.0),h=rndRange(0.7,1.05);
+    b.scale.set(h*1.3,h,1);
+    b.position.set(Math.cos(ang)*rad,y,Math.sin(ang)*rad);
+    b.userData={mode:'fly',ang,rad,y,spd:rndRange(0.05,0.12),seed:Math.random()*TAU,amp:rndRange(0.3,0.7),h};
+  }else{
+    const rad=rndRange(16.0,19.0),y=rndRange(1.3,2.6),h=rndRange(0.6,0.85);
+    b.scale.set(h*1.2,h,1);
+    b.position.set(Math.cos(ang)*rad,y,Math.sin(ang)*rad);
+    b.userData={mode:'perch',ang,rad,y,seed:Math.random()*TAU,h,flapT:Math.random()*4};
+  }
   bgGroup.add(b);bgBirds.push(b);
 }
 
@@ -649,19 +696,19 @@ for(let i=0;i<FAR_N;i++){
 
 const bgFoliage=[];
 const folPlane=new THREE.PlaneGeometry(1,1);folPlane.translate(0,0.5,0);
-/* 主树丛：近景大树—中景灌树—远景草灌，三层错落环绕 */
-const FOL_N=pc(64,34);
+/* 主树丛：近景大树—中景灌树—远景草灌，三层错落环绕；整体外推避免树冠遮挡盘面 */
+const FOL_N=pc(66,36);
 for(let i=0;i<FOL_N;i++){
   const ang=Math.random()*TAU;
   const layer=Math.random();
   let rad,kind,h,far;
-  if(layer<0.24){
-    rad=rndRange(12.5,15.0);kind='tree';h=rndRange(4.6,6.2);far=false;
-  }else if(layer<0.64){
-    rad=rndRange(15.0,18.0);kind=Math.random()<0.55?'tree':'bush';
-    h=kind==='tree'?rndRange(2.8,3.8):rndRange(1.8,2.4);far=false;
+  if(layer<0.22){
+    rad=rndRange(15.2,17.2);kind='tree';h=rndRange(3.4,4.4);far=false;
+  }else if(layer<0.62){
+    rad=rndRange(17.0,19.5);kind=Math.random()<0.55?'tree':'bush';
+    h=kind==='tree'?rndRange(2.4,3.2):rndRange(1.6,2.2);far=false;
   }else{
-    rad=rndRange(18.0,22.5);kind=Math.random()<0.5?'bush':'grass';h=rndRange(1.0,1.9);far=true;
+    rad=rndRange(19.5,23.0);kind=Math.random()<0.5?'bush':'grass';h=rndRange(0.9,1.7);far=true;
   }
   const mat=new THREE.MeshBasicMaterial({map:folTex[kind],transparent:true,depthWrite:false,fog:far});
   const m=new THREE.Mesh(folPlane,mat);
@@ -670,36 +717,36 @@ for(let i=0;i<FOL_N;i++){
   m.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
   m.userData.seed=Math.random()*TAU;
   m.userData.amp=kind==='grass'?rndRange(0.05,0.09):rndRange(0.015,0.030);
-  m.userData.mat=mat;m.userData.far=far;
+  m.userData.mat=mat;m.userData.far=far;m.userData.kind=kind;m.userData.op=1;
   bgGroup.add(m);bgFoliage.push(m);
-  /* 近景大树根部托底灌丛，消除树底空白 */
+  /* 近景大树根部托底灌丛，随树一起外推，消除树底空白 */
   if(kind==='tree'&&!far){
     const bk=Math.random()<0.6?'bush':'grass';
     const bmat=new THREE.MeshBasicMaterial({map:folTex[bk],transparent:true,depthWrite:false,fog:false});
     const bm=new THREE.Mesh(folPlane,bmat);
-    const bh=rndRange(1.1,1.7);
+    const bh=rndRange(1.0,1.5);
     bm.scale.set(bh*1.1*mir,bh,1);
-    const br=rad-rndRange(0.2,0.7);
+    const br=rad+rndRange(0.1,0.5);
     bm.position.set(Math.cos(ang)*br,0.02,Math.sin(ang)*br);
     bm.userData.seed=Math.random()*TAU;
     bm.userData.amp=rndRange(0.02,0.04);
-    bm.userData.mat=bmat;bm.userData.far=false;
+    bm.userData.mat=bmat;bm.userData.far=false;bm.userData.kind=bk;bm.userData.op=1;
     bgGroup.add(bm);bgFoliage.push(bm);
   }
 }
-/* 贴地草团：扁宽草甸铺满盘外空地，填补背景地面空白 */
-const GRD_N=pc(34,18);
+/* 贴地草团：扁宽草甸铺在盘外远侧空地，避开盘边一圈 */
+const GRD_N=pc(38,20);
 for(let i=0;i<GRD_N;i++){
   const ang=Math.random()*TAU;
-  const rad=rndRange(11.5,20.0);
+  const rad=rndRange(12.8,20.5);
   const mat=new THREE.MeshBasicMaterial({map:folTex.grass,transparent:true,depthWrite:false,fog:rad>17});
   const m=new THREE.Mesh(folPlane,mat);
-  const h=rndRange(0.6,1.1),mir=Math.random()<0.5?-1:1;
+  const h=rndRange(0.6,1.0),mir=Math.random()<0.5?-1:1;
   m.scale.set(h*1.7*mir,h,1);
   m.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
   m.userData.seed=Math.random()*TAU;
   m.userData.amp=rndRange(0.04,0.07);
-  m.userData.mat=mat;m.userData.far=rad>17;
+  m.userData.mat=mat;m.userData.far=rad>17;m.userData.kind='grass';m.userData.op=1;
   bgGroup.add(m);bgFoliage.push(m);
 }
 /* 远景缓移薄雾：柔边雾团在林带后横向漂移，增强空气透视 */
@@ -720,6 +767,7 @@ for(let i=0;i<MIST_N;i++){
   ms.scale.set(rndRange(11,16),rndRange(3.2,5.2),1);
   ms.position.set(Math.cos(ang)*rad,rndRange(1.8,3.8),Math.sin(ang)*rad);
   ms.userData.seed=Math.random()*TAU;
+  ms.userData.baseOp=mm.opacity;
   ms.userData.baseX=ms.position.x;ms.userData.baseZ=ms.position.z;
   ms.userData.spd=rndRange(0.05,0.10);
   bgGroup.add(ms);bgMist.push(ms);
@@ -742,32 +790,38 @@ for(let i=0;i<TL_N;i++){
   bgGroup.add(m);bgTreelines.push(m);
 }
 const folTint=[
-  new THREE.Color(0.86,0.96,0.70),
-  new THREE.Color(0.52,0.80,0.48),
-  new THREE.Color(1.00,0.55,0.22),
-  new THREE.Color(0.78,0.58,0.80)
+  new THREE.Color(0.93,0.99,0.74),
+  new THREE.Color(0.40,0.72,0.38),
+  new THREE.Color(1.00,0.48,0.16),
+  new THREE.Color(0.82,0.80,0.88)
 ];
 const folFog=new THREE.Color(0.62,0.65,0.68);
 const folTmp=new THREE.Color();
 const bgTmp=new THREE.Color();
 const bgTint=[
-  new THREE.Color(0.80,0.92,0.72),
-  new THREE.Color(0.60,0.84,0.60),
-  new THREE.Color(1.00,0.62,0.30),
-  new THREE.Color(0.66,0.62,0.74)
+  new THREE.Color(0.86,0.95,0.76),
+  new THREE.Color(0.50,0.80,0.50),
+  new THREE.Color(1.00,0.56,0.24),
+  new THREE.Color(0.76,0.80,0.86)
 ];
+function pickTex(texSet,wv){if(!texSet)return null;return wv.z>0.5?texSet.aut:(wv.w>0.5?texSet.win:texSet.orig);}
 function updateFoliageTint(wv){
   groundMat.uniforms.uW.value.copy(wv);
   riverMat.uniforms.uW.value.copy(wv);
-  const birdOp=0.78-0.42*wv.w;
-  for(const b of bgBirds)b.material.opacity=birdOp;
+  for(const b of bgBirds){
+    const u=b.userData;
+    b.material.opacity=u.mode==='perch'?(0.70-0.45*wv.w):(0.78-0.42*wv.w);
+  }
   bgTmp.setRGB(
     bgTint[0].r*wv.x+bgTint[1].r*wv.y+bgTint[2].r*wv.z+bgTint[3].r*wv.w,
     bgTint[0].g*wv.x+bgTint[1].g*wv.y+bgTint[2].g*wv.z+bgTint[3].g*wv.w,
     bgTint[0].b*wv.x+bgTint[1].b*wv.y+bgTint[2].b*wv.z+bgTint[3].b*wv.w);
-  for(const m of bgMountains)m.material.color.copy(bgTmp);
-  for(const m of bgFarMountains)m.material.color.copy(bgTmp).multiplyScalar(0.85);
-  for(const m of bgTreelines)m.material.color.copy(bgTmp).multiplyScalar(0.92);
+  const tm=pickTex(folVar.mtn,wv),tt=pickTex(folVar.tl,wv);
+  for(const m of bgMountains){m.material.color.copy(bgTmp);if(tm&&m.material.map!==tm)m.material.map=tm;}
+  for(const m of bgFarMountains){m.material.color.copy(bgTmp).multiplyScalar(0.85);if(tm&&m.material.map!==tm)m.material.map=tm;}
+  for(const m of bgTreelines){m.material.color.copy(bgTmp).multiplyScalar(0.92);if(tt&&m.material.map!==tt)m.material.map=tt;}
+  const mistK=0.85*wv.x+0.55*wv.y+0.70*wv.z+0.80*wv.w;
+  for(const ms of bgMist)ms.material.opacity=ms.userData.baseOp*mistK;
   for(const m of bgFoliage){
     folTmp.setRGB(
       folTint[0].r*wv.x+folTint[1].r*wv.y+folTint[2].r*wv.z+folTint[3].r*wv.w,
@@ -775,6 +829,11 @@ function updateFoliageTint(wv){
       folTint[0].b*wv.x+folTint[1].b*wv.y+folTint[2].b*wv.z+folTint[3].b*wv.w);
     if(m.userData.far)folTmp.lerp(folFog,0.35);
     m.userData.mat.color.copy(folTmp);
+    const fv=folVar['fol.'+m.userData.kind];
+    const tf=pickTex(fv,wv);
+    if(tf&&m.userData.mat.map!==tf)m.userData.mat.map=tf;
+    const bare=m.userData.kind==='grass'?0.28:0.45;
+    m.userData.mat.opacity=1-wv.w*bare;
   }
 }
 function animateFoliage(time){
@@ -793,12 +852,21 @@ function animateFoliage(time){
   riverMat.uniforms.uTime.value=time;
   for(const b of bgBirds){
     const u=b.userData;
-    const ang=u.ang+time*u.spd;
-    b.position.x=Math.cos(ang)*u.rad;
-    b.position.z=Math.sin(ang)*u.rad;
-    b.position.y=u.y+Math.sin(time*0.8+u.seed)*u.amp;
-    const flap=Math.sin(time*6.0+u.seed)*0.18;
-    b.scale.x=u.h*1.3*(1+flap);
+    if(u.mode==='fly'){
+      const ang=u.ang+time*u.spd;
+      b.position.x=Math.cos(ang)*u.rad;
+      b.position.z=Math.sin(ang)*u.rad;
+      b.position.y=u.y+Math.sin(time*0.8+u.seed)*u.amp;
+      const flap=Math.sin(time*7.0+u.seed)*0.30;
+      b.scale.set(u.h*1.3*(1+flap),u.h*(1-flap*0.4),1);
+    }else{
+      b.position.x=Math.cos(u.ang)*u.rad;
+      b.position.z=Math.sin(u.ang)*u.rad;
+      const T=3.5+(u.seed%2.0);
+      const ph=(time+u.seed)%T;
+      const flap=ph<0.6?Math.sin(time*18.0+u.seed)*0.26:0;
+      b.scale.set(u.h*1.2*(1+flap),u.h*(1-flap*0.35),1);
+    }
   }
 }
 /* 前景闪烁星：均匀天球 + 沿银道面聚集 */
