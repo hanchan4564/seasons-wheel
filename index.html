@@ -565,6 +565,55 @@ const groundMat=new THREE.ShaderMaterial({
 });
 const bgGround=new THREE.Mesh(groundGeo,groundMat);bgGround.position.y=0.02;bgGroup.add(bgGround);
 
+/* 环绕河湾：一条随山势蜿蜒的浅河铺在盘外草甸上，水面反光随季节流转 */
+const riverGeo=new THREE.BufferGeometry();
+{
+  const RN=128,rPos=[],rUv=[],rIdx=[];
+  for(let i=0;i<=RN;i++){
+    const th=i/RN*TAU;
+    const rc=21.0+1.8*Math.sin(th*3+1.0);
+    const hw=1.15;
+    const ri=rc-hw,ro=rc+hw;
+    rPos.push(Math.cos(th)*ri,0.03,Math.sin(th)*ri, Math.cos(th)*ro,0.03,Math.sin(th)*ro);
+    rUv.push(i/RN,0, i/RN,1);
+    if(i<RN){const a=i*2,b=a+1,c=a+2,d=a+3;rIdx.push(a,c,b,b,c,d);}
+  }
+  riverGeo.setAttribute('position',new THREE.Float32BufferAttribute(rPos,3));
+  riverGeo.setAttribute('uv',new THREE.Float32BufferAttribute(rUv,2));
+  riverGeo.setIndex(rIdx);
+}
+const riverMat=new THREE.ShaderMaterial({
+  uniforms:{uW:{value:new THREE.Vector4(1,0,0,0)},uTime:{value:0}},
+  transparent:true,depthWrite:false,
+  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader:`
+    uniform vec4 uW;uniform float uTime;varying vec2 vUv;
+    void main(){
+      vec3 cS=vec3(0.18,0.40,0.42),cSu=vec3(0.10,0.30,0.40),cA=vec3(0.32,0.34,0.33),cW=vec3(0.62,0.70,0.76);
+      vec3 col=uW.x*cS+uW.y*cSu+uW.z*cA+uW.w*cW;
+      float rip=sin(vUv.x*36.0-uTime*1.6)*0.5+0.5;
+      col+=vec3(0.32,0.38,0.38)*rip*0.32;
+      float edge=smoothstep(0.0,0.18,vUv.y)*smoothstep(1.0,0.82,vUv.y);
+      gl_FragColor=vec4(col,0.85*edge);
+    }`
+});
+const bgRiver=new THREE.Mesh(riverGeo,riverMat);bgRiver.renderOrder=1;bgGroup.add(bgRiver);
+
+/* 远景飞鸟群：绕盘盘旋的雀鸟，季节转冷时渐疏 */
+const birdTex=new THREE.TextureLoader().load('assets/animal/sparrow.webp');
+birdTex.encoding=THREE.sRGBEncoding;
+const bgBirds=[];
+const BIRD_N=pc(14,8);
+for(let i=0;i<BIRD_N;i++){
+  const mat=new THREE.SpriteMaterial({map:birdTex,transparent:true,depthWrite:false,fog:false,opacity:0.75});
+  const b=new THREE.Sprite(mat);
+  const rad=rndRange(14.0,19.0),ang=Math.random()*TAU,y=rndRange(5.0,7.5),h=rndRange(0.7,1.05);
+  b.scale.set(h*1.3,h,1);
+  b.position.set(Math.cos(ang)*rad,y,Math.sin(ang)*rad);
+  b.userData={ang,rad,y,spd:rndRange(0.05,0.12),seed:Math.random()*TAU,amp:rndRange(0.3,0.7),h};
+  bgGroup.add(b);bgBirds.push(b);
+}
+
 /* 远山环：沿转盘一周布置山峦横幅，任意视角环绕都有山景围合 */
 const mountainTex=new THREE.TextureLoader().load('assets/foliage/mountain.webp');
 mountainTex.encoding=THREE.sRGBEncoding;
@@ -581,6 +630,21 @@ for(let i=0;i<MTN_N;i++){
   m.position.set(Math.cos(a)*19.5,0,Math.sin(a)*19.5);
   m.lookAt(0,4.5,0);
   bgGroup.add(m);bgMountains.push(m);
+}
+/* 最远山剪影：再退一层淡色山影，拉开远中近纵深 */
+const bgFarMountains=[];
+const farGeo=new THREE.PlaneGeometry(18,8);
+farGeo.translate(0,4.0,0);
+const FAR_N=pc(12,9);
+for(let i=0;i<FAR_N;i++){
+  const a=i/FAR_N*TAU;
+  const mat=new THREE.MeshBasicMaterial({map:mountainTex,transparent:true,depthWrite:false,fog:false,opacity:0.38});
+  const m=new THREE.Mesh(farGeo,mat);
+  m.frustumCulled=false;
+  m.scale.x*=(Math.random()<0.5?-1:1);
+  m.position.set(Math.cos(a)*24.5,0,Math.sin(a)*24.5);
+  m.lookAt(0,4.0,0);
+  bgGroup.add(m);bgFarMountains.push(m);
 }
 
 const bgFoliage=[];
@@ -680,8 +744,8 @@ for(let i=0;i<TL_N;i++){
 const folTint=[
   new THREE.Color(0.86,0.96,0.70),
   new THREE.Color(0.52,0.80,0.48),
-  new THREE.Color(0.98,0.66,0.32),
-  new THREE.Color(0.74,0.80,0.86)
+  new THREE.Color(1.00,0.55,0.22),
+  new THREE.Color(0.78,0.58,0.80)
 ];
 const folFog=new THREE.Color(0.62,0.65,0.68);
 const folTmp=new THREE.Color();
@@ -689,16 +753,20 @@ const bgTmp=new THREE.Color();
 const bgTint=[
   new THREE.Color(0.80,0.92,0.72),
   new THREE.Color(0.60,0.84,0.60),
-  new THREE.Color(0.96,0.74,0.42),
-  new THREE.Color(0.82,0.87,0.92)
+  new THREE.Color(1.00,0.62,0.30),
+  new THREE.Color(0.66,0.62,0.74)
 ];
 function updateFoliageTint(wv){
   groundMat.uniforms.uW.value.copy(wv);
+  riverMat.uniforms.uW.value.copy(wv);
+  const birdOp=0.78-0.42*wv.w;
+  for(const b of bgBirds)b.material.opacity=birdOp;
   bgTmp.setRGB(
     bgTint[0].r*wv.x+bgTint[1].r*wv.y+bgTint[2].r*wv.z+bgTint[3].r*wv.w,
     bgTint[0].g*wv.x+bgTint[1].g*wv.y+bgTint[2].g*wv.z+bgTint[3].g*wv.w,
     bgTint[0].b*wv.x+bgTint[1].b*wv.y+bgTint[2].b*wv.z+bgTint[3].b*wv.w);
   for(const m of bgMountains)m.material.color.copy(bgTmp);
+  for(const m of bgFarMountains)m.material.color.copy(bgTmp).multiplyScalar(0.85);
   for(const m of bgTreelines)m.material.color.copy(bgTmp).multiplyScalar(0.92);
   for(const m of bgFoliage){
     folTmp.setRGB(
@@ -721,6 +789,16 @@ function animateFoliage(time){
     const s=ms.userData.seed;
     ms.position.x=ms.userData.baseX+Math.sin(time*ms.userData.spd+s)*1.4;
     ms.position.z=ms.userData.baseZ+Math.cos(time*ms.userData.spd*0.8+s)*0.8;
+  }
+  riverMat.uniforms.uTime.value=time;
+  for(const b of bgBirds){
+    const u=b.userData;
+    const ang=u.ang+time*u.spd;
+    b.position.x=Math.cos(ang)*u.rad;
+    b.position.z=Math.sin(ang)*u.rad;
+    b.position.y=u.y+Math.sin(time*0.8+u.seed)*u.amp;
+    const flap=Math.sin(time*6.0+u.seed)*0.18;
+    b.scale.x=u.h*1.3*(1+flap);
   }
 }
 /* 前景闪烁星：均匀天球 + 沿银道面聚集 */
