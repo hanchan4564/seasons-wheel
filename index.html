@@ -434,11 +434,58 @@ const bandNormal=(()=>{
   const tau=0.38;
   return nb0.multiplyScalar(Math.cos(tau)).add(bandTangent.clone().multiplyScalar(Math.sin(tau))).normalize();
 })();
+/* 山河壁纸：Canvas 手绘远山云雾，随季节权重重绘，不使用外部图片 */
+const bgCanvas=document.createElement('canvas');
+bgCanvas.width=1600;bgCanvas.height=900;
+const bgCtx=bgCanvas.getContext('2d');
+const bgTex=new THREE.CanvasTexture(bgCanvas);
+bgTex.encoding=THREE.sRGBEncoding;bgTex.minFilter=THREE.LinearFilter;bgTex.generateMipmaps=false;
+const BG_PAL={
+  skyTop:[[150,195,225],[110,170,220],[150,180,210],[150,175,200]],
+  skyHor:[[240,238,228],[235,244,240],[244,220,170],[236,240,244]],
+  far:[[186,198,202],[176,196,200],[206,178,140],[190,204,214]],
+  mid:[[140,160,168],[130,156,166],[176,134,92],[150,172,186]],
+  near:[[84,108,116],[80,104,114],[108,78,50],[84,112,132]],
+  ground:[[196,208,198],[192,210,200],[214,188,150],[226,232,236]]
+};
+function _bgMix(w,key){
+  const p=BG_PAL[key],c=[0,0,0];
+  for(let i=0;i<4;i++){c[0]+=w[i]*p[i][0];c[1]+=w[i]*p[i][1];c[2]+=w[i]*p[i][2];}
+  return c;
+}
+function _rgb(c){return `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;}
+function _ridge(ctx,W,H,baseY,amp,color,seed){
+  ctx.beginPath();ctx.moveTo(0,H);
+  for(let x=0;x<=W;x+=8){
+    const n=0.5*Math.sin(x*0.010+seed)+0.3*Math.sin(x*0.023+seed*2.0)+0.2*Math.sin(x*0.051+seed*3.1);
+    ctx.lineTo(x,baseY-amp*n);
+  }
+  ctx.lineTo(W,H);ctx.closePath();ctx.fillStyle=color;ctx.fill();
+}
+function drawBg(w){
+  const ctx=bgCtx,W=bgCanvas.width,H=bgCanvas.height;
+  const skyTop=_bgMix(w,'skyTop'),skyHor=_bgMix(w,'skyHor'),far=_bgMix(w,'far'),mid=_bgMix(w,'mid'),near=_bgMix(w,'near'),ground=_bgMix(w,'ground');
+  const g=ctx.createLinearGradient(0,0,0,H*0.66);
+  g.addColorStop(0,_rgb(skyTop));g.addColorStop(1,_rgb(skyHor));
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  /* 柔云 */
+  ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='#ffffff';
+  const clouds=[[260,150,150,46],[620,110,190,52],[1000,170,170,44],[1330,120,160,48]];
+  for(const [cx,cy,cw,ch] of clouds){ctx.beginPath();ctx.ellipse(cx,cy,cw/2,ch/2,0,0,Math.PI*2);ctx.fill();}
+  ctx.restore();
+  _ridge(ctx,W,H,H*0.42,46,_rgb(far),1.3);
+  _ridge(ctx,W,H,H*0.53,54,_rgb(mid),3.7);
+  _ridge(ctx,W,H,H*0.65,60,_rgb(near),5.9);
+  const gg=ctx.createLinearGradient(0,H*0.76,0,H);
+  gg.addColorStop(0,_rgb(near));gg.addColorStop(1,_rgb(ground));
+  ctx.fillStyle=gg;ctx.fillRect(0,H*0.76,W,H*0.24);
+  bgTex.needsUpdate=true;
+}
+let bgLast=null;
 const skyMat=new THREE.ShaderMaterial({
   side:THREE.BackSide,depthWrite:false,
   uniforms:{uNb:{value:bandNormal},uTheme:{value:0},uSkyA:{value:new THREE.Color(0x9ec8ff)},uSkyB:{value:new THREE.Color(0x2a4a86)},
-  uTexS:{value:new THREE.Texture()},uTexSu:{value:new THREE.Texture()},uTexA:{value:new THREE.Texture()},uTexW:{value:new THREE.Texture()},
-  uW:{value:new THREE.Vector4(1,0,0,0)}},
+  uW:{value:new THREE.Vector4(1,0,0,0)},uBg:{value:bgTex}},
   vertexShader:`
     varying vec3 vDir;varying vec2 vUv;
     void main(){
@@ -446,8 +493,7 @@ const skyMat=new THREE.ShaderMaterial({
       gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
     }`,
   fragmentShader:`
-    uniform vec3 uNb;uniform float uTheme;uniform vec3 uSkyA;uniform vec3 uSkyB;
-    uniform sampler2D uTexS;uniform sampler2D uTexSu;uniform sampler2D uTexA;uniform sampler2D uTexW;uniform vec4 uW;varying vec3 vDir;varying vec2 vUv;
+    uniform vec3 uNb;uniform float uTheme;uniform vec3 uSkyA;uniform vec3 uSkyB;uniform vec4 uW;uniform sampler2D uBg;varying vec3 vDir;varying vec2 vUv;
     float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
     float noise(vec3 p){
       vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
@@ -461,12 +507,14 @@ const skyMat=new THREE.ShaderMaterial({
       for(int i=0;i<5;i++){v+=a*noise(p);p*=2.03;a*=0.5;}
       return v;
     }
+    vec3 seasonMix(vec3 s,vec3 su,vec3 a,vec3 w){return uW.x*s+uW.y*su+uW.z*a+uW.w*w;}
+    float ridge(float az,float seed,float amp,float base){
+      return base+amp*(0.55*sin(az*1.6+seed)+0.30*sin(az*3.1+seed*1.7)+0.15*sin(az*5.3+seed*2.3));
+    }
     void main(){
       vec3 dir=normalize(vDir);
-      if(uTheme>0.5){
-        vec3 col=uW.x*texture2D(uTexS,vUv).rgb+uW.y*texture2D(uTexSu,vUv).rgb+uW.z*texture2D(uTexA,vUv).rgb+uW.w*texture2D(uTexW,vUv).rgb;
-        float up=smoothstep(-0.05,0.15,dir.y);
-        col*=0.92+0.12*up;
+                                                      if(uTheme>0.5){
+        vec3 col=texture2D(uBg,vUv).rgb;
         gl_FragColor=vec4(col,1.0);
         return;
       }
@@ -518,6 +566,7 @@ const skyMat=new THREE.ShaderMaterial({
     }`
 });
 const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat);scene.add(skyMesh);
+drawBg([1,0,0,0]);
 
 /* 前景闪烁星：均匀天球 + 沿银道面聚集 */
 const starGeo=new THREE.BufferGeometry();
@@ -579,19 +628,7 @@ const starMat=new THREE.ShaderMaterial({
 });
 const starPts=new THREE.Points(starGeo,starMat);scene.add(starPts);
 
-/* ===== 山河四季：程序化风光背景（远山 / 云），主题1启用 ===== */
-/* 山河主题：四季写实风光贴图，贴入天球背景按权重交叉渐变 */
-(function loadBgTextures(){
-  const files=['spring.webp','summer.webp','autumn.webp','winter.webp'];
-  const keys=['uTexS','uTexSu','uTexA','uTexW'];
-  const loader=new THREE.TextureLoader();
-  files.forEach((f,i)=>{
-    loader.load('assets/background/'+f,t=>{
-      t.encoding=THREE.sRGBEncoding;t.minFilter=THREE.LinearFilter;t.generateMipmaps=false;
-      skyMat.uniforms[keys[i]].value=t;
-    });
-  });
-})();
+/* ===== 山河四季：程序化风光背景（天空 / 层叠远山 / 柔云），主题1启用 ===== */
 
 /* 亮星：十字芒刺 + 光晕 */
 function makeGlintTexture(){
@@ -3330,6 +3367,10 @@ function animate(){
   skyMat.uniforms.uTheme.value=theme;
   if(theme===1){
     skyMat.uniforms.uW.value.set(w[1]+w[0],w[2],w[3],w[4]);
+    const bw=[w[1]+w[0],w[2],w[3],w[4]];
+    if(!bgLast||Math.abs(bw[0]-bgLast[0])+Math.abs(bw[1]-bgLast[1])+Math.abs(bw[2]-bgLast[2])+Math.abs(bw[3]-bgLast[3])>0.03){
+      drawBg(bw);bgLast=bw;
+    }
     scene.fog.color.setHex(0xbfd4e6);
     key.color.setRGB(1.0,0.97,0.90);key.intensity=1.25;
     hemi.color.setRGB(0.86,0.91,1.0);hemi.intensity=0.9;
