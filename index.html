@@ -522,29 +522,112 @@ const skyMat=new THREE.ShaderMaterial({
 });
 const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat);scene.add(skyMesh);
 
-/* ===== 全屏写实四季背景：四张风光图随权重 crossfade，静止铺满视口（主题1） ===== */
+/* ===== 背景 3D 活景：远侧风动树丛花草 + 承接地面，随季节换色（白昼主题） ===== */
 const bgGroup=new THREE.Group();scene.add(bgGroup);
-const bgTexUrls=[
-  'assets/background/bg-spring.webp',
-  'assets/background/bg-summer.webp',
-  'assets/background/bg-autumn.webp',
-  'assets/background/bg-winter.webp'
-];
-const bgTex=bgTexUrls.map(u=>{const t=new THREE.TextureLoader().load(u);t.encoding=THREE.sRGBEncoding;return t;});
-const bgSceneryMat=new THREE.ShaderMaterial({
-  uniforms:{t0:{value:bgTex[0]},t1:{value:bgTex[1]},t2:{value:bgTex[2]},t3:{value:bgTex[3]},
-    uW:{value:new THREE.Vector4(1,0,0,0)}},
-  transparent:true,depthWrite:false,side:THREE.BackSide,
-  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+const oppAz=1.05+Math.PI;
+const folTex={};
+['tree','bush','grass'].forEach(function(k){const t=new THREE.TextureLoader().load('assets/foliage/'+k+'.webp');t.encoding=THREE.sRGBEncoding;folTex[k]=t;});
+
+/* 背景承接地面：仅盘远侧向远景铺展，外缘与两侧渐隐入天空，季节雾草色 */
+const groundGeo=new THREE.RingGeometry(10.6,30,96,1);
+groundGeo.rotateX(-Math.PI/2);
+const groundMat=new THREE.ShaderMaterial({
+  uniforms:{uW:{value:new THREE.Vector4(1,0,0,0)},uOpp:{value:oppAz}},
+  transparent:true,depthWrite:false,
+  vertexShader:`varying float vR;varying vec2 vXZ;void main(){vR=length(position.xz);vXZ=position.xz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`
-    uniform sampler2D t0,t1,t2,t3;uniform vec4 uW;varying vec2 vUv;
+    uniform vec4 uW;uniform float uOpp;varying float vR;varying vec2 vXZ;
     void main(){
-      vec4 c=texture2D(t0,vUv)*uW.x+texture2D(t1,vUv)*uW.y+texture2D(t2,vUv)*uW.z+texture2D(t3,vUv)*uW.w;
-      gl_FragColor=vec4(c.rgb*0.9,1.0);
+      vec3 cS=vec3(0.34,0.48,0.29),cSu=vec3(0.22,0.43,0.25),cA=vec3(0.46,0.34,0.19),cW=vec3(0.54,0.59,0.63);
+      vec3 col=uW.x*cS+uW.y*cSu+uW.z*cA+uW.w*cW;
+      float ang=atan(vXZ.y,vXZ.x);
+      float d=ang-uOpp;
+      float da=abs(atan(sin(d),cos(d)));
+      float angMask=smoothstep(1.25,0.70,da);
+      float a=smoothstep(30.0,16.0,vR)*0.55*angMask;
+      gl_FragColor=vec4(col*0.5,a);
     }`
 });
-const bgScenery=new THREE.Mesh(new THREE.SphereGeometry(280,48,32),bgSceneryMat);
-bgScenery.frustumCulled=false;bgGroup.add(bgScenery);
+const bgGround=new THREE.Mesh(groundGeo,groundMat);bgGround.position.y=0.02;bgGroup.add(bgGround);
+
+/* 远山剪影：两层程序化山脊，远浅近深，随季节换雾色 */
+const bgHills=[];
+const hillGeo=new THREE.PlaneGeometry(56,15,1,1);
+hillGeo.translate(0,7.5,0);
+function makeHill(dist,hgt,alpha,seed){
+  const mat=new THREE.ShaderMaterial({
+    uniforms:{uW:{value:new THREE.Vector4(1,0,0,0)},uAlpha:{value:alpha},uSeed:{value:seed}},
+    transparent:true,depthWrite:false,
+    vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`
+      uniform vec4 uW;uniform float uAlpha,uSeed;varying vec2 vUv;
+      float ridge(float x){return 0.55+0.30*sin(x*2.6+uSeed)+0.18*sin(x*6.3+uSeed*1.7)+0.09*sin(x*11.0+uSeed);}
+      void main(){
+        vec3 cS=vec3(0.30,0.38,0.28),cSu=vec3(0.20,0.33,0.24),cA=vec3(0.38,0.29,0.18),cW=vec3(0.42,0.48,0.55);
+        vec3 col=uW.x*cS+uW.y*cSu+uW.z*cA+uW.w*cW;
+        float h=ridge(vUv.x);
+        float m=1.0-smoothstep(h-0.03,h+0.03,vUv.y);
+        gl_FragColor=vec4(col,m*uAlpha);
+      }`
+  });
+  const m=new THREE.Mesh(hillGeo,mat);
+  m.frustumCulled=false;
+  m.scale.y=hgt/15;
+  m.position.set(Math.cos(oppAz)*dist,0,Math.sin(oppAz)*dist);
+  bgGroup.add(m);bgHills.push(m);
+  return m;
+}
+makeHill(26,15,0.70,1.7);
+makeHill(21,12,0.95,4.2);
+
+const bgFoliage=[];
+const folPlane=new THREE.PlaneGeometry(1,1);folPlane.translate(0,0.5,0);
+const FOL_N=pc(24,14);
+for(let i=0;i<FOL_N;i++){
+  const ang=oppAz+rndRange(-1.05,1.05);
+  const far=Math.random()<0.35;
+  const rad=far?rndRange(18,22):rndRange(13,17);
+  const kind=Math.random()<0.38?'tree':(Math.random()<0.6?'bush':'grass');
+  const mat=new THREE.MeshBasicMaterial({map:folTex[kind],transparent:true,depthWrite:false,fog:false});
+  const m=new THREE.Mesh(folPlane,mat);
+  let h=kind==='tree'?rndRange(3.4,5.6):kind==='bush'?rndRange(1.6,2.6):rndRange(0.9,1.5);
+  if(far)h*=0.80;
+  m.scale.set(h*0.85,h,1);
+  m.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
+  m.userData.seed=Math.random()*TAU;
+  m.userData.amp=kind==='grass'?rndRange(0.05,0.09):rndRange(0.015,0.030);
+  m.userData.mat=mat;m.userData.far=far;
+  bgGroup.add(m);bgFoliage.push(m);
+}
+const folTint=[
+  new THREE.Color(1.00,0.95,0.92),
+  new THREE.Color(0.93,1.00,0.88),
+  new THREE.Color(1.00,0.80,0.52),
+  new THREE.Color(0.80,0.87,0.95)
+];
+const folFog=new THREE.Color(0.55,0.52,0.58);
+const folTmp=new THREE.Color();
+function updateFoliageTint(wv){
+  groundMat.uniforms.uW.value.copy(wv);
+  for(const h of bgHills)h.material.uniforms.uW.value.copy(wv);
+  for(const m of bgFoliage){
+    folTmp.setRGB(
+      folTint[0].r*wv.x+folTint[1].r*wv.y+folTint[2].r*wv.z+folTint[3].r*wv.w,
+      folTint[0].g*wv.x+folTint[1].g*wv.y+folTint[2].g*wv.z+folTint[3].g*wv.w,
+      folTint[0].b*wv.x+folTint[1].b*wv.y+folTint[2].b*wv.z+folTint[3].b*wv.w);
+    if(m.userData.far)folTmp.lerp(folFog,0.15);
+    m.userData.mat.color.copy(folTmp);
+  }
+}
+function animateFoliage(time){
+  for(const h of bgHills)h.lookAt(camera.position.x,0,camera.position.z);
+  for(const m of bgFoliage){
+    m.lookAt(camera.position.x,0,camera.position.z);
+    const s=m.userData.seed;
+    m.rotateZ(Math.sin(time*1.2+s)*m.userData.amp);
+    m.rotateX(Math.cos(time*0.9+s*1.3)*m.userData.amp*0.5);
+  }
+}
 /* 前景闪烁星：均匀天球 + 沿银道面聚集 */
 const starGeo=new THREE.BufferGeometry();
 {
@@ -3007,7 +3090,6 @@ function applyTheme(t){
   for(const m of auroraMeshes)m.visible=night;
   underGlow.visible=night;
   bgGroup.visible=!night;
-  bgScenery.visible=!night;
 }
 const clock=new THREE.Clock();
 let frameAcc=0,frameN=0,degraded=false;
@@ -3299,6 +3381,7 @@ function animate(){
   fallMat.uniforms.uTime.value=simTime;
   headMat.uniforms.uTime.value=simTime;
   horMat.uniforms.uTime.value=simTime;
+  animateFoliage(simTime);
   auroraBoost+=(1-auroraBoost)*Math.min(1,sdt*0.8);
   /* 冬夜极光最盛（真实极光季），夏夜略收，跟着季节呼吸 */
   if(!paused){
@@ -3331,7 +3414,7 @@ function animate(){
   skyMat.uniforms.uTheme.value=theme;
   if(theme===1){
     skyMat.uniforms.uW.value.set(w[1]+w[0],w[2],w[3],w[4]);
-    bgSceneryMat.uniforms.uW.value.copy(skyMat.uniforms.uW.value);
+    updateFoliageTint(skyMat.uniforms.uW.value);
     scene.fog.color.setHex(0x0a1626);
     key.color.setRGB(1.0,0.97,0.90);key.intensity=1.25;
     hemi.color.setRGB(0.86,0.91,1.0);hemi.intensity=0.9;
