@@ -526,7 +526,6 @@ const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat);scene.a
 
 /* ===== 背景 3D 活景：远侧风动树丛花草 + 承接地面，随季节换色（白昼主题） ===== */
 const bgGroup=new THREE.Group();scene.add(bgGroup);
-const oppAz=1.05+Math.PI;
 const folTex={};
 ['tree','bush','grass'].forEach(function(k){const t=new THREE.TextureLoader().load('assets/foliage/'+k+'.webp');t.encoding=THREE.sRGBEncoding;folTex[k]=t;});
 
@@ -534,40 +533,42 @@ const folTex={};
 const groundGeo=new THREE.RingGeometry(10.6,30,96,1);
 groundGeo.rotateX(-Math.PI/2);
 const groundMat=new THREE.ShaderMaterial({
-  uniforms:{uW:{value:new THREE.Vector4(1,0,0,0)},uOpp:{value:oppAz}},
+  uniforms:{uW:{value:new THREE.Vector4(1,0,0,0)}},
   transparent:true,depthWrite:false,
   vertexShader:`varying float vR;varying vec2 vXZ;void main(){vR=length(position.xz);vXZ=position.xz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`
-    uniform vec4 uW;uniform float uOpp;varying float vR;varying vec2 vXZ;
+    uniform vec4 uW;varying float vR;varying vec2 vXZ;
     void main(){
       vec3 cS=vec3(0.34,0.48,0.30),cSu=vec3(0.24,0.40,0.26),cA=vec3(0.42,0.33,0.20),cW=vec3(0.50,0.56,0.60);
       vec3 col=uW.x*cS+uW.y*cSu+uW.z*cA+uW.w*cW;
-      float ang=atan(vXZ.y,vXZ.x);
-      float d=ang-uOpp;
-      float da=abs(atan(sin(d),cos(d)));
-      float angMask=smoothstep(1.35,0.75,da);
-      float a=smoothstep(30.0,13.0,vR)*0.5*angMask;
+      float a=smoothstep(30.0,13.0,vR)*0.5;
       gl_FragColor=vec4(col*0.85,a);
     }`
 });
 const bgGround=new THREE.Mesh(groundGeo,groundMat);bgGround.position.y=0.02;bgGroup.add(bgGround);
 
-/* 远山：宽幅连绵山峦贴图，铺于林带之后，随季节轻微染色 */
+/* 远山环：沿转盘一周布置山峦横幅，任意视角环绕都有山景围合 */
 const mountainTex=new THREE.TextureLoader().load('assets/foliage/mountain.webp');
 mountainTex.encoding=THREE.sRGBEncoding;
-const mountainGeo=new THREE.PlaneGeometry(50,18);
-mountainGeo.translate(0,9,0);
-const mountainMat=new THREE.MeshBasicMaterial({map:mountainTex,transparent:true,depthWrite:false,fog:false});
-const bgMountain=new THREE.Mesh(mountainGeo,mountainMat);
-bgMountain.frustumCulled=false;
-bgMountain.position.set(Math.cos(oppAz)*19,0,Math.sin(oppAz)*19);
-bgGroup.add(bgMountain);
+const bgMountains=[];
+const mtnGeo=new THREE.PlaneGeometry(16,9);
+mtnGeo.translate(0,4.5,0);
+const MTN_N=pc(9,7);
+for(let i=0;i<MTN_N;i++){
+  const a=i/MTN_N*TAU;
+  const mat=new THREE.MeshBasicMaterial({map:mountainTex,transparent:true,depthWrite:false,fog:false});
+  const m=new THREE.Mesh(mtnGeo,mat);
+  m.frustumCulled=false;
+  m.position.set(Math.cos(a)*19,0,Math.sin(a)*19);
+  m.lookAt(0,4.5,0);
+  bgGroup.add(m);bgMountains.push(m);
+}
 
 const bgFoliage=[];
 const folPlane=new THREE.PlaneGeometry(1,1);folPlane.translate(0,0.5,0);
 const FOL_N=pc(34,18);
 for(let i=0;i<FOL_N;i++){
-  const ang=oppAz+rndRange(-1.05,1.05);
+  const ang=Math.random()*TAU;
   const layer=Math.random();
   let rad,kind,h,far;
   if(layer<0.25){
@@ -598,7 +599,7 @@ const mistTex=new THREE.CanvasTexture(mistCv);
 const bgMist=[];
 const MIST_N=pc(5,3);
 for(let i=0;i<MIST_N;i++){
-  const ang=oppAz+rndRange(-1.1,1.1);
+  const ang=Math.random()*TAU;
   const rad=rndRange(16.5,20.5);
   const mm=new THREE.MeshBasicMaterial({map:mistTex,transparent:true,depthWrite:false,fog:false,opacity:rndRange(0.10,0.16)});
   const ms=new THREE.Mesh(folPlane,mm);
@@ -609,16 +610,22 @@ for(let i=0;i<MIST_N;i++){
   ms.userData.spd=rndRange(0.05,0.10);
   bgGroup.add(ms);bgMist.push(ms);
 }
-/* 远景连绵林线：树海横带压在远山之前，补足背景层次 */
+/* 远景连绵林线：树海横带环绕一周，压在远山之前补足背景层次 */
 const treelineTex=new THREE.TextureLoader().load('assets/foliage/treeline.webp');
 treelineTex.encoding=THREE.sRGBEncoding;
-const tlGeo=new THREE.PlaneGeometry(46,7);
-tlGeo.translate(0,3.5,0);
-const tlMat=new THREE.MeshBasicMaterial({map:treelineTex,transparent:true,depthWrite:false,fog:false,opacity:0.92});
-const bgTreeline=new THREE.Mesh(tlGeo,tlMat);
-bgTreeline.frustumCulled=false;
-bgTreeline.position.set(Math.cos(oppAz)*20,0,Math.sin(oppAz)*20);
-bgGroup.add(bgTreeline);
+const bgTreelines=[];
+const tlGeo=new THREE.PlaneGeometry(16,4.5);
+tlGeo.translate(0,2.25,0);
+const TL_N=pc(9,7);
+for(let i=0;i<TL_N;i++){
+  const a=i/TL_N*TAU;
+  const mat=new THREE.MeshBasicMaterial({map:treelineTex,transparent:true,depthWrite:false,fog:false,opacity:0.92});
+  const m=new THREE.Mesh(tlGeo,mat);
+  m.frustumCulled=false;
+  m.position.set(Math.cos(a)*17.5,0,Math.sin(a)*17.5);
+  m.lookAt(0,2.25,0);
+  bgGroup.add(m);bgTreelines.push(m);
+}
 const folTint=[
   new THREE.Color(1.00,0.95,0.92),
   new THREE.Color(0.93,1.00,0.88),
@@ -627,8 +634,21 @@ const folTint=[
 ];
 const folFog=new THREE.Color(0.55,0.52,0.58);
 const folTmp=new THREE.Color();
+const bgTmp=new THREE.Color();
+const bgTint=[
+  new THREE.Color(0.88,0.96,0.84),
+  new THREE.Color(0.80,0.95,0.78),
+  new THREE.Color(1.00,0.84,0.58),
+  new THREE.Color(0.88,0.91,0.97)
+];
 function updateFoliageTint(wv){
   groundMat.uniforms.uW.value.copy(wv);
+  bgTmp.setRGB(
+    bgTint[0].r*wv.x+bgTint[1].r*wv.y+bgTint[2].r*wv.z+bgTint[3].r*wv.w,
+    bgTint[0].g*wv.x+bgTint[1].g*wv.y+bgTint[2].g*wv.z+bgTint[3].g*wv.w,
+    bgTint[0].b*wv.x+bgTint[1].b*wv.y+bgTint[2].b*wv.z+bgTint[3].b*wv.w);
+  for(const m of bgMountains)m.material.color.copy(bgTmp);
+  for(const m of bgTreelines)m.material.color.copy(bgTmp).multiplyScalar(0.92);
   for(const m of bgFoliage){
     folTmp.setRGB(
       folTint[0].r*wv.x+folTint[1].r*wv.y+folTint[2].r*wv.z+folTint[3].r*wv.w,
@@ -639,8 +659,6 @@ function updateFoliageTint(wv){
   }
 }
 function animateFoliage(time){
-  bgMountain.lookAt(camera.position.x,0,camera.position.z);
-  bgTreeline.lookAt(camera.position.x,0,camera.position.z);
   for(const m of bgFoliage){
     m.lookAt(camera.position.x,0,camera.position.z);
     const s=m.userData.seed;
