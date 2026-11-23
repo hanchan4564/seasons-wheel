@@ -538,11 +538,14 @@ const groundMat=new THREE.ShaderMaterial({
   vertexShader:`varying float vR;varying vec2 vXZ;void main(){vR=length(position.xz);vXZ=position.xz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`
     uniform vec4 uW;varying float vR;varying vec2 vXZ;
+    float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
     void main(){
-      vec3 cS=vec3(0.34,0.48,0.30),cSu=vec3(0.24,0.40,0.26),cA=vec3(0.42,0.33,0.20),cW=vec3(0.50,0.56,0.60);
+      vec3 cS=vec3(0.30,0.46,0.24),cSu=vec3(0.20,0.38,0.20),cA=vec3(0.42,0.33,0.17),cW=vec3(0.66,0.70,0.74);
       vec3 col=uW.x*cS+uW.y*cSu+uW.z*cA+uW.w*cW;
-      float a=smoothstep(30.0,13.0,vR)*0.5;
-      gl_FragColor=vec4(col*0.85,a);
+      float n=hash(floor(vXZ*3.0));
+      col*=0.94+0.08*n;
+      float a=smoothstep(30.0,12.0,vR)*0.92;
+      gl_FragColor=vec4(col,a);
     }`
 });
 const bgGround=new THREE.Mesh(groundGeo,groundMat);bgGround.position.y=0.02;bgGroup.add(bgGround);
@@ -566,18 +569,18 @@ for(let i=0;i<MTN_N;i++){
 
 const bgFoliage=[];
 const folPlane=new THREE.PlaneGeometry(1,1);folPlane.translate(0,0.5,0);
-const FOL_N=pc(34,18);
+const FOL_N=pc(46,26);
 for(let i=0;i<FOL_N;i++){
   const ang=Math.random()*TAU;
   const layer=Math.random();
   let rad,kind,h,far;
-  if(layer<0.25){
+  if(layer<0.22){
     rad=rndRange(13.0,15.5);kind='tree';h=rndRange(4.6,6.2);far=false;
-  }else if(layer<0.70){
-    rad=rndRange(15.5,18.5);kind=Math.random()<0.6?'tree':'bush';
+  }else if(layer<0.62){
+    rad=rndRange(15.5,18.0);kind=Math.random()<0.55?'tree':'bush';
     h=kind==='tree'?rndRange(2.8,3.8):rndRange(1.8,2.4);far=false;
   }else{
-    rad=rndRange(18.5,22.0);kind=Math.random()<0.5?'bush':'grass';h=rndRange(1.2,2.0);far=true;
+    rad=rndRange(18.0,22.0);kind=Math.random()<0.5?'bush':'grass';h=rndRange(1.0,1.9);far=true;
   }
   const mat=new THREE.MeshBasicMaterial({map:folTex[kind],transparent:true,depthWrite:false,fog:false});
   const m=new THREE.Mesh(folPlane,mat);
@@ -627,19 +630,19 @@ for(let i=0;i<TL_N;i++){
   bgGroup.add(m);bgTreelines.push(m);
 }
 const folTint=[
-  new THREE.Color(1.00,0.95,0.92),
-  new THREE.Color(0.93,1.00,0.88),
-  new THREE.Color(1.00,0.80,0.52),
-  new THREE.Color(0.80,0.87,0.95)
+  new THREE.Color(0.92,0.98,0.86),
+  new THREE.Color(0.78,0.96,0.72),
+  new THREE.Color(1.00,0.76,0.42),
+  new THREE.Color(0.80,0.86,0.93)
 ];
 const folFog=new THREE.Color(0.55,0.52,0.58);
 const folTmp=new THREE.Color();
 const bgTmp=new THREE.Color();
 const bgTint=[
-  new THREE.Color(0.88,0.96,0.84),
-  new THREE.Color(0.80,0.95,0.78),
-  new THREE.Color(1.00,0.84,0.58),
-  new THREE.Color(0.88,0.91,0.97)
+  new THREE.Color(0.86,0.95,0.82),
+  new THREE.Color(0.76,0.94,0.74),
+  new THREE.Color(1.00,0.80,0.52),
+  new THREE.Color(0.86,0.90,0.96)
 ];
 function updateFoliageTint(wv){
   groundMat.uniforms.uW.value.copy(wv);
