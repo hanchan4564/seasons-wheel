@@ -434,58 +434,10 @@ const bandNormal=(()=>{
   const tau=0.38;
   return nb0.multiplyScalar(Math.cos(tau)).add(bandTangent.clone().multiplyScalar(Math.sin(tau))).normalize();
 })();
-/* 山河壁纸：Canvas 手绘远山云雾，随季节权重重绘，不使用外部图片 */
-const bgCanvas=document.createElement('canvas');
-bgCanvas.width=1600;bgCanvas.height=900;
-const bgCtx=bgCanvas.getContext('2d');
-const bgTex=new THREE.CanvasTexture(bgCanvas);
-bgTex.encoding=THREE.sRGBEncoding;bgTex.minFilter=THREE.LinearFilter;bgTex.generateMipmaps=false;
-const BG_PAL={
-  skyTop:[[150,195,225],[110,170,220],[150,180,210],[150,175,200]],
-  skyHor:[[240,238,228],[235,244,240],[244,220,170],[236,240,244]],
-  far:[[186,198,202],[176,196,200],[206,178,140],[190,204,214]],
-  mid:[[140,160,168],[130,156,166],[176,134,92],[150,172,186]],
-  near:[[84,108,116],[80,104,114],[108,78,50],[84,112,132]],
-  ground:[[196,208,198],[192,210,200],[214,188,150],[226,232,236]]
-};
-function _bgMix(w,key){
-  const p=BG_PAL[key],c=[0,0,0];
-  for(let i=0;i<4;i++){c[0]+=w[i]*p[i][0];c[1]+=w[i]*p[i][1];c[2]+=w[i]*p[i][2];}
-  return c;
-}
-function _rgb(c){return `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;}
-function _ridge(ctx,W,H,baseY,amp,color,seed){
-  ctx.beginPath();ctx.moveTo(0,H);
-  for(let x=0;x<=W;x+=8){
-    const n=0.5*Math.sin(x*0.010+seed)+0.3*Math.sin(x*0.023+seed*2.0)+0.2*Math.sin(x*0.051+seed*3.1);
-    ctx.lineTo(x,baseY-amp*n);
-  }
-  ctx.lineTo(W,H);ctx.closePath();ctx.fillStyle=color;ctx.fill();
-}
-function drawBg(w){
-  const ctx=bgCtx,W=bgCanvas.width,H=bgCanvas.height;
-  const skyTop=_bgMix(w,'skyTop'),skyHor=_bgMix(w,'skyHor'),far=_bgMix(w,'far'),mid=_bgMix(w,'mid'),near=_bgMix(w,'near'),ground=_bgMix(w,'ground');
-  const g=ctx.createLinearGradient(0,0,0,H*0.66);
-  g.addColorStop(0,_rgb(skyTop));g.addColorStop(1,_rgb(skyHor));
-  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  /* 柔云 */
-  ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='#ffffff';
-  const clouds=[[260,150,150,46],[620,110,190,52],[1000,170,170,44],[1330,120,160,48]];
-  for(const [cx,cy,cw,ch] of clouds){ctx.beginPath();ctx.ellipse(cx,cy,cw/2,ch/2,0,0,Math.PI*2);ctx.fill();}
-  ctx.restore();
-  _ridge(ctx,W,H,H*0.42,46,_rgb(far),1.3);
-  _ridge(ctx,W,H,H*0.53,54,_rgb(mid),3.7);
-  _ridge(ctx,W,H,H*0.65,60,_rgb(near),5.9);
-  const gg=ctx.createLinearGradient(0,H*0.76,0,H);
-  gg.addColorStop(0,_rgb(near));gg.addColorStop(1,_rgb(ground));
-  ctx.fillStyle=gg;ctx.fillRect(0,H*0.76,W,H*0.24);
-  bgTex.needsUpdate=true;
-}
-let bgLast=null;
 const skyMat=new THREE.ShaderMaterial({
   side:THREE.BackSide,depthWrite:false,
-  uniforms:{uNb:{value:bandNormal},uTheme:{value:0},uSkyA:{value:new THREE.Color(0x9ec8ff)},uSkyB:{value:new THREE.Color(0x2a4a86)},
-  uW:{value:new THREE.Vector4(1,0,0,0)},uBg:{value:bgTex}},
+  uniforms:{uNb:{value:bandNormal},uTheme:{value:0},uSkyA:{value:new THREE.Color(0x060f1c)},uSkyB:{value:new THREE.Color(0x11243a)},
+  uW:{value:new THREE.Vector4(1,0,0,0)}},
   vertexShader:`
     varying vec3 vDir;varying vec2 vUv;
     void main(){
@@ -493,7 +445,7 @@ const skyMat=new THREE.ShaderMaterial({
       gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
     }`,
   fragmentShader:`
-    uniform vec3 uNb;uniform float uTheme;uniform vec3 uSkyA;uniform vec3 uSkyB;uniform vec4 uW;uniform sampler2D uBg;varying vec3 vDir;varying vec2 vUv;
+    uniform vec3 uNb;uniform float uTheme;uniform vec3 uSkyA;uniform vec3 uSkyB;uniform vec4 uW;varying vec3 vDir;varying vec2 vUv;
     float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
     float noise(vec3 p){
       vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
@@ -514,7 +466,10 @@ const skyMat=new THREE.ShaderMaterial({
     void main(){
       vec3 dir=normalize(vDir);
                                                       if(uTheme>0.5){
-        vec3 col=texture2D(uBg,vUv).rgb;
+        float h=clamp(dir.y*0.6+0.45,0.0,1.0);
+        vec3 top=seasonMix(vec3(0.16,0.10,0.24),vec3(0.03,0.12,0.20),vec3(0.18,0.09,0.07),vec3(0.07,0.12,0.20));
+        vec3 bot=seasonMix(vec3(0.36,0.25,0.36),vec3(0.12,0.34,0.40),vec3(0.42,0.26,0.12),vec3(0.24,0.33,0.43));
+        vec3 col=mix(bot,top,pow(h,0.85));
         gl_FragColor=vec4(col,1.0);
         return;
       }
@@ -566,7 +521,89 @@ const skyMat=new THREE.ShaderMaterial({
     }`
 });
 const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat);scene.add(skyMesh);
-drawBg([1,0,0,0]);
+
+/* ===== 背景发光花：Canvas 绘制精灵 + 环绕光带 + 远景星尘（主题1） ===== */
+const bgGroup=new THREE.Group();scene.add(bgGroup);
+function makeFlowerTexture(){
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const x=c.getContext('2d');
+  const cx=128,cy=128;
+  x.globalCompositeOperation='lighter';
+  function petals(n,len,wid,rot){
+    for(let i=0;i<n;i++){
+      x.save();x.translate(cx,cy);x.rotate(i/n*Math.PI*2+rot);
+      const g=x.createLinearGradient(0,0,len,0);
+      g.addColorStop(0,'rgba(205,205,205,0.95)');
+      g.addColorStop(0.5,'rgba(205,205,205,0.30)');
+      g.addColorStop(1,'rgba(205,205,205,0)');
+      x.fillStyle=g;
+      x.beginPath();x.ellipse(len*0.5,0,wid,len*0.46,0,0,Math.PI*2);x.fill();
+      x.restore();
+    }
+  }
+  petals(8,112,19,0);
+  petals(5,64,15,0.5);
+  const core=x.createRadialGradient(cx,cy,0,cx,cy,18);
+  core.addColorStop(0,'rgba(228,228,228,1)');
+  core.addColorStop(1,'rgba(228,228,228,0)');
+  x.fillStyle=core;x.beginPath();x.arc(cx,cy,18,0,Math.PI*2);x.fill();
+  const tex=new THREE.CanvasTexture(c);tex.encoding=THREE.sRGBEncoding;
+  return tex;
+}
+const flowerTex=makeFlowerTexture();
+const bgSpriteMat=new THREE.SpriteMaterial({map:flowerTex,color:0xffd9e6,transparent:true,opacity:0.92,depthWrite:false,fog:false});
+const bgSpriteMatB=bgSpriteMat.clone();
+function makeSprite(mat,sx,sy,px,py,pz,rz){
+  const sp=new THREE.Sprite(mat);
+  sp.scale.set(sx,sy,1);sp.position.set(px,py,pz);mat.rotation=rz;return sp;
+}
+const flowerA=makeSprite(bgSpriteMat,5.6,5.6,1.6,3.4,-13,0);
+const flowerB=makeSprite(bgSpriteMatB,2.6,2.6,-3.2,2.4,-15,0.4);
+const flowerC=makeSprite(bgSpriteMatB,1.7,1.7,-1.6,4.6,-19,0.2);
+const flowerD=makeSprite(bgSpriteMatB,1.5,1.5,3.6,1.6,-19,0.7);
+bgGroup.add(flowerA,flowerB,flowerC,flowerD);
+function makeRing(rx,ry,tilt,color,op){
+  const N=128,pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){const t=i/N*TAU;pos[i*3]=Math.cos(t)*rx;pos[i*3+1]=Math.sin(t)*ry;pos[i*3+2]=0;}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const m=new THREE.LineBasicMaterial({color,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false});
+  const l=new THREE.LineLoop(g,m);l.rotation.x=tilt;return l;
+}
+const ringA=makeRing(2.7,1.5,0.35,0x9fc8ff,0.35);ringA.position.copy(flowerA.position);bgGroup.add(ringA);
+const ringB=makeRing(2.2,1.1,-0.25,0xc8b8ff,0.28);ringB.position.copy(flowerB.position);bgGroup.add(ringB);
+const DUST_N=pc(360,180);
+const dustGeo=new THREE.BufferGeometry();
+{
+  const pos=new Float32Array(DUST_N*3),seed=new Float32Array(DUST_N);
+  for(let i=0;i<DUST_N;i++){
+    pos[i*3]=rndRange(-16,16);pos[i*3+1]=rndRange(-1,12);pos[i*3+2]=rndRange(-30,-8);
+    seed[i]=Math.random();
+  }
+  dustGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  dustGeo.setAttribute('aSeed',new THREE.BufferAttribute(seed,1));
+}
+const dustMat=new THREE.ShaderMaterial({
+  uniforms:{uTime:{value:0},uPix:{value:Math.min(2,window.devicePixelRatio||1)}},
+  transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+  vertexShader:`
+    attribute float aSeed;uniform float uTime,uPix;varying float vA;
+    void main(){
+      vA=0.5+0.5*sin(uTime*(0.5+aSeed)+aSeed*20.0);
+      vec3 p=position;p.y+=sin(uTime*0.3+aSeed*6.2831)*0.3;
+      vec4 mv=modelViewMatrix*vec4(p,1.0);
+      gl_PointSize=(1.0+aSeed*1.4)*uPix*(24.0/-mv.z);
+      gl_Position=projectionMatrix*mv;
+    }`,
+  fragmentShader:`
+    varying float vA;
+    void main(){
+      vec2 d=gl_PointCoord-0.5;float r=length(d);
+      float a=exp(-r*r*18.0)*vA*0.7;
+      if(a<0.01)discard;
+      gl_FragColor=vec4(vec3(0.8,0.88,1.0),a);
+    }`
+});
+const dust=new THREE.Points(dustGeo,dustMat);dust.frustumCulled=false;bgGroup.add(dust);
 
 /* 前景闪烁星：均匀天球 + 沿银道面聚集 */
 const starGeo=new THREE.BufferGeometry();
@@ -3019,21 +3056,6 @@ function setPaused(v){
   if(window.__musicSync)window.__musicSync(v);
 }
 
-/* 风光主题：每季天空(地平/天顶)与山体基色，按全局季节权重插值 */
-const SKY_SEASONS=[
-  [0.55,0.66,0.80, 0.22,0.48,0.84],
-  [0.55,0.66,0.80, 0.22,0.48,0.84],
-  [0.52,0.70,0.74, 0.16,0.44,0.80],
-  [0.72,0.58,0.42, 0.30,0.38,0.62],
-  [0.58,0.64,0.74, 0.32,0.42,0.58]
-];
-const RIDGE_SEASONS=[
-  [0.30,0.48,0.28],
-  [0.30,0.48,0.28],
-  [0.16,0.36,0.20],
-  [0.48,0.32,0.14],
-  [0.42,0.48,0.55]
-];
 let theme=0;
 function applyTheme(t){
   theme=t;
@@ -3044,6 +3066,7 @@ function applyTheme(t){
   auroraHalo.visible=night;auroraRibbon.visible=night;horizonHalo.visible=night;
   for(const m of auroraMeshes)m.visible=night;
   underGlow.visible=night;
+  bgGroup.visible=!night;
 }
 const clock=new THREE.Clock();
 let frameAcc=0,frameN=0,degraded=false;
@@ -3335,6 +3358,12 @@ function animate(){
   fallMat.uniforms.uTime.value=simTime;
   headMat.uniforms.uTime.value=simTime;
   horMat.uniforms.uTime.value=simTime;
+  dustMat.uniforms.uTime.value=simTime;
+  bgSpriteMat.rotation+=sdt*0.12;  bgSpriteMatB.rotation-=sdt*0.10;
+  flowerA.position.y=3.4+Math.sin(simTime*0.5)*0.25;
+  flowerB.position.y=2.4+Math.cos(simTime*0.4)*0.20;
+  ringA.rotation.z+=sdt*0.20;
+  ringB.rotation.z-=sdt*0.16;
   auroraBoost+=(1-auroraBoost)*Math.min(1,sdt*0.8);
   /* 冬夜极光最盛（真实极光季），夏夜略收，跟着季节呼吸 */
   if(!paused){
@@ -3367,11 +3396,13 @@ function animate(){
   skyMat.uniforms.uTheme.value=theme;
   if(theme===1){
     skyMat.uniforms.uW.value.set(w[1]+w[0],w[2],w[3],w[4]);
-    const bw=[w[1]+w[0],w[2],w[3],w[4]];
-    if(!bgLast||Math.abs(bw[0]-bgLast[0])+Math.abs(bw[1]-bgLast[1])+Math.abs(bw[2]-bgLast[2])+Math.abs(bw[3]-bgLast[3])>0.03){
-      drawBg(bw);bgLast=bw;
-    }
-    scene.fog.color.setHex(0xbfd4e6);
+    const bw=skyMat.uniforms.uW.value;
+    const pr=bw.x*1.00+bw.y*0.55+bw.z*1.00+bw.w*0.60;
+    const pg=bw.x*0.55+bw.y*0.70+bw.z*0.62+bw.w*0.78;
+    const pb=bw.x*0.70+bw.y*1.00+bw.z*0.32+bw.w*0.92;
+    bgSpriteMat.color.setRGB(pr,pg,pb);
+    bgSpriteMatB.color.setRGB(pr,pg,pb);
+    scene.fog.color.setHex(0x0a1626);
     key.color.setRGB(1.0,0.97,0.90);key.intensity=1.25;
     hemi.color.setRGB(0.86,0.91,1.0);hemi.intensity=0.9;
   }else{
