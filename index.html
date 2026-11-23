@@ -268,8 +268,14 @@
 <script>
 window.addEventListener('error',function(e){
   var f=document.getElementById('fallback'),l=document.getElementById('loader');
-  if(f){f.style.display='flex';f.innerHTML='页面加载出错，请刷新重试';}
+  var msg=(e&&e.message)||'未知错误';
+  if(f){f.style.display='flex';f.innerHTML='页面出错：'+msg;}
   if(l)l.classList.add('off');
+});
+window.addEventListener('unhandledrejection',function(e){
+  var f=document.getElementById('fallback');
+  var msg=(e&&e.reason&&(e.reason.message||e.reason))||'未知错误';
+  if(f){f.style.display='flex';f.innerHTML='页面出错：'+msg;}
 });
 setTimeout(function(){var l=document.getElementById('loader');if(l&&!l.dataset.off){l.dataset.off='1';l.classList.add('off');}},8000);
 </script>
@@ -306,16 +312,23 @@ setTimeout(function(){var l=document.getElementById('loader');if(l&&!l.dataset.o
 <script>
 /* ===== 三维引擎加载结果检查 ===== */
 (function(){
-  if(window.THREE){window.__boot&&window.__boot();}
+  function runBoot(){
+    try{ window.__boot&&window.__boot(); }
+    catch(err){
+      var f=document.getElementById('fallback');
+      if(f){f.style.display='flex';f.innerHTML='启动出错：'+((err&&err.message)||err);}
+    }
+  }
+  if(window.THREE){runBoot();}
   else{
     /* 本地失败才尝试 CDN */
     var s=document.createElement('script');
     s.src='https://fastly.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
-    s.onload=function(){window.__boot&&window.__boot();};
+    s.onload=runBoot;
     s.onerror=function(){
       var b=document.createElement('script');
       b.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-      b.onload=function(){window.__boot&&window.__boot();};
+      b.onload=runBoot;
       b.onerror=function(){
         document.getElementById('fallback').style.display='flex';
         document.getElementById('loader').classList.add('off');
@@ -540,11 +553,13 @@ const groundMat=new THREE.ShaderMaterial({
     uniform vec4 uW;varying float vR;varying vec2 vXZ;
     float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
     void main(){
-      vec3 cS=vec3(0.30,0.46,0.24),cSu=vec3(0.20,0.38,0.20),cA=vec3(0.42,0.33,0.17),cW=vec3(0.66,0.70,0.74);
+      vec3 cS=vec3(0.34,0.50,0.27),cSu=vec3(0.19,0.39,0.19),cA=vec3(0.47,0.35,0.18),cW=vec3(0.60,0.64,0.69);
       vec3 col=uW.x*cS+uW.y*cSu+uW.z*cA+uW.w*cW;
       float n=hash(floor(vXZ*3.0));
-      col*=0.94+0.08*n;
-      float a=smoothstep(30.0,12.0,vR)*0.92;
+      col*=0.90+0.16*n;
+      vec3 haze=vec3(0.60,0.65,0.66);
+      col=mix(col,haze,smoothstep(16.0,30.0,vR)*0.42);
+      float a=smoothstep(30.0,13.0,vR)*0.96;
       gl_FragColor=vec4(col,a);
     }`
 });
@@ -556,39 +571,71 @@ mountainTex.encoding=THREE.sRGBEncoding;
 const bgMountains=[];
 const mtnGeo=new THREE.PlaneGeometry(16,9);
 mtnGeo.translate(0,4.5,0);
-const MTN_N=pc(9,7);
+const MTN_N=pc(12,9);
 for(let i=0;i<MTN_N;i++){
   const a=i/MTN_N*TAU;
   const mat=new THREE.MeshBasicMaterial({map:mountainTex,transparent:true,depthWrite:false,fog:false});
   const m=new THREE.Mesh(mtnGeo,mat);
   m.frustumCulled=false;
-  m.position.set(Math.cos(a)*19,0,Math.sin(a)*19);
+  m.scale.x*=(Math.random()<0.5?-1:1);
+  m.position.set(Math.cos(a)*19.5,0,Math.sin(a)*19.5);
   m.lookAt(0,4.5,0);
   bgGroup.add(m);bgMountains.push(m);
 }
 
 const bgFoliage=[];
 const folPlane=new THREE.PlaneGeometry(1,1);folPlane.translate(0,0.5,0);
-const FOL_N=pc(46,26);
+/* 主树丛：近景大树—中景灌树—远景草灌，三层错落环绕 */
+const FOL_N=pc(64,34);
 for(let i=0;i<FOL_N;i++){
   const ang=Math.random()*TAU;
   const layer=Math.random();
   let rad,kind,h,far;
-  if(layer<0.22){
-    rad=rndRange(13.0,15.5);kind='tree';h=rndRange(4.6,6.2);far=false;
-  }else if(layer<0.62){
-    rad=rndRange(15.5,18.0);kind=Math.random()<0.55?'tree':'bush';
+  if(layer<0.24){
+    rad=rndRange(12.5,15.0);kind='tree';h=rndRange(4.6,6.2);far=false;
+  }else if(layer<0.64){
+    rad=rndRange(15.0,18.0);kind=Math.random()<0.55?'tree':'bush';
     h=kind==='tree'?rndRange(2.8,3.8):rndRange(1.8,2.4);far=false;
   }else{
-    rad=rndRange(18.0,22.0);kind=Math.random()<0.5?'bush':'grass';h=rndRange(1.0,1.9);far=true;
+    rad=rndRange(18.0,22.5);kind=Math.random()<0.5?'bush':'grass';h=rndRange(1.0,1.9);far=true;
   }
-  const mat=new THREE.MeshBasicMaterial({map:folTex[kind],transparent:true,depthWrite:false,fog:false});
+  const mat=new THREE.MeshBasicMaterial({map:folTex[kind],transparent:true,depthWrite:false,fog:far});
   const m=new THREE.Mesh(folPlane,mat);
-  m.scale.set(h*0.9,h,1);
+  const mir=Math.random()<0.5?-1:1;
+  m.scale.set(h*0.9*mir,h,1);
   m.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
   m.userData.seed=Math.random()*TAU;
   m.userData.amp=kind==='grass'?rndRange(0.05,0.09):rndRange(0.015,0.030);
   m.userData.mat=mat;m.userData.far=far;
+  bgGroup.add(m);bgFoliage.push(m);
+  /* 近景大树根部托底灌丛，消除树底空白 */
+  if(kind==='tree'&&!far){
+    const bk=Math.random()<0.6?'bush':'grass';
+    const bmat=new THREE.MeshBasicMaterial({map:folTex[bk],transparent:true,depthWrite:false,fog:false});
+    const bm=new THREE.Mesh(folPlane,bmat);
+    const bh=rndRange(1.1,1.7);
+    bm.scale.set(bh*1.1*mir,bh,1);
+    const br=rad-rndRange(0.2,0.7);
+    bm.position.set(Math.cos(ang)*br,0.02,Math.sin(ang)*br);
+    bm.userData.seed=Math.random()*TAU;
+    bm.userData.amp=rndRange(0.02,0.04);
+    bm.userData.mat=bmat;bm.userData.far=false;
+    bgGroup.add(bm);bgFoliage.push(bm);
+  }
+}
+/* 贴地草团：扁宽草甸铺满盘外空地，填补背景地面空白 */
+const GRD_N=pc(34,18);
+for(let i=0;i<GRD_N;i++){
+  const ang=Math.random()*TAU;
+  const rad=rndRange(11.5,20.0);
+  const mat=new THREE.MeshBasicMaterial({map:folTex.grass,transparent:true,depthWrite:false,fog:rad>17});
+  const m=new THREE.Mesh(folPlane,mat);
+  const h=rndRange(0.6,1.1),mir=Math.random()<0.5?-1:1;
+  m.scale.set(h*1.7*mir,h,1);
+  m.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
+  m.userData.seed=Math.random()*TAU;
+  m.userData.amp=rndRange(0.04,0.07);
+  m.userData.mat=mat;m.userData.far=rad>17;
   bgGroup.add(m);bgFoliage.push(m);
 }
 /* 远景缓移薄雾：柔边雾团在林带后横向漂移，增强空气透视 */
@@ -600,14 +647,14 @@ mistGrad.addColorStop(1,'rgba(255,255,255,0)');
 mistCtx.fillStyle=mistGrad;mistCtx.fillRect(0,0,256,128);
 const mistTex=new THREE.CanvasTexture(mistCv);
 const bgMist=[];
-const MIST_N=pc(5,3);
+const MIST_N=pc(8,5);
 for(let i=0;i<MIST_N;i++){
   const ang=Math.random()*TAU;
-  const rad=rndRange(16.5,20.5);
-  const mm=new THREE.MeshBasicMaterial({map:mistTex,transparent:true,depthWrite:false,fog:false,opacity:rndRange(0.10,0.16)});
+  const rad=rndRange(16.0,21.0);
+  const mm=new THREE.MeshBasicMaterial({map:mistTex,transparent:true,depthWrite:false,fog:false,opacity:rndRange(0.08,0.15)});
   const ms=new THREE.Mesh(folPlane,mm);
-  ms.scale.set(rndRange(11,15),rndRange(3.5,5),1);
-  ms.position.set(Math.cos(ang)*rad,rndRange(2.2,3.6),Math.sin(ang)*rad);
+  ms.scale.set(rndRange(11,16),rndRange(3.2,5.2),1);
+  ms.position.set(Math.cos(ang)*rad,rndRange(1.8,3.8),Math.sin(ang)*rad);
   ms.userData.seed=Math.random()*TAU;
   ms.userData.baseX=ms.position.x;ms.userData.baseZ=ms.position.z;
   ms.userData.spd=rndRange(0.05,0.10);
@@ -619,30 +666,31 @@ treelineTex.encoding=THREE.sRGBEncoding;
 const bgTreelines=[];
 const tlGeo=new THREE.PlaneGeometry(16,4.5);
 tlGeo.translate(0,2.25,0);
-const TL_N=pc(9,7);
+const TL_N=pc(12,9);
 for(let i=0;i<TL_N;i++){
   const a=i/TL_N*TAU;
   const mat=new THREE.MeshBasicMaterial({map:treelineTex,transparent:true,depthWrite:false,fog:false,opacity:0.92});
   const m=new THREE.Mesh(tlGeo,mat);
   m.frustumCulled=false;
+  m.scale.x*=(Math.random()<0.5?-1:1);
   m.position.set(Math.cos(a)*17.5,0,Math.sin(a)*17.5);
   m.lookAt(0,2.25,0);
   bgGroup.add(m);bgTreelines.push(m);
 }
 const folTint=[
-  new THREE.Color(0.92,0.98,0.86),
-  new THREE.Color(0.78,0.96,0.72),
-  new THREE.Color(1.00,0.76,0.42),
-  new THREE.Color(0.80,0.86,0.93)
+  new THREE.Color(0.86,0.96,0.70),
+  new THREE.Color(0.52,0.80,0.48),
+  new THREE.Color(0.98,0.66,0.32),
+  new THREE.Color(0.74,0.80,0.86)
 ];
-const folFog=new THREE.Color(0.55,0.52,0.58);
+const folFog=new THREE.Color(0.62,0.65,0.68);
 const folTmp=new THREE.Color();
 const bgTmp=new THREE.Color();
 const bgTint=[
-  new THREE.Color(0.86,0.95,0.82),
-  new THREE.Color(0.76,0.94,0.74),
-  new THREE.Color(1.00,0.80,0.52),
-  new THREE.Color(0.86,0.90,0.96)
+  new THREE.Color(0.80,0.92,0.72),
+  new THREE.Color(0.60,0.84,0.60),
+  new THREE.Color(0.96,0.74,0.42),
+  new THREE.Color(0.82,0.87,0.92)
 ];
 function updateFoliageTint(wv){
   groundMat.uniforms.uW.value.copy(wv);
