@@ -467,8 +467,8 @@ const skyMat=new THREE.ShaderMaterial({
       vec3 dir=normalize(vDir);
                                                       if(uTheme>0.5){
         float h=clamp(dir.y*0.6+0.45,0.0,1.0);
-        vec3 top=seasonMix(vec3(0.12,0.08,0.18),vec3(0.03,0.12,0.20),vec3(0.18,0.09,0.07),vec3(0.07,0.12,0.20));
-        vec3 bot=seasonMix(vec3(0.26,0.17,0.30),vec3(0.12,0.34,0.40),vec3(0.42,0.26,0.12),vec3(0.24,0.33,0.43));
+        vec3 top=seasonMix(vec3(0.10,0.11,0.15),vec3(0.03,0.12,0.20),vec3(0.18,0.09,0.07),vec3(0.07,0.12,0.20));
+        vec3 bot=seasonMix(vec3(0.30,0.25,0.27),vec3(0.12,0.34,0.40),vec3(0.42,0.26,0.12),vec3(0.24,0.33,0.43));
         vec3 col=mix(bot,top,pow(h,0.85));
         gl_FragColor=vec4(col,1.0);
         return;
@@ -522,72 +522,33 @@ const skyMat=new THREE.ShaderMaterial({
 });
 const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat);scene.add(skyMesh);
 
-/* ===== 背景粒子风景画：远山 / 林麓 / 河川 / 花簇 / 飞鸟（主题1） ===== */
+/* ===== 背景写实风光幕：四张电影感四季图随权重 crossfade（主题1） ===== */
 const bgGroup=new THREE.Group();scene.add(bgGroup);
-const bgLandGeo=new THREE.BufferGeometry();
-{
-  const P=[],S=[],T=[];
-  function put(x,y,z,t){P.push(x,y,z);S.push(Math.random());T.push(t);}
-  function rg(u,b,a,f,ph){return b+a*(0.6*Math.sin(u*f+ph)+0.4*Math.sin(u*f*1.7+ph*1.3));}
-  /* 环绕转盘的三层密集粒子环 */
-  const rings=[[10.5,0.16,pc(560,300)],[11.8,0.30,pc(460,250)],[13.1,0.46,pc(380,210)]];
-  for(const [R,ry,n] of rings){
-    for(let i=0;i<n;i++){
-      const a=i/n*TAU,rr=R+rndRange(-0.10,0.10),yy=ry+rndRange(-0.08,0.10);
-      put(Math.cos(a)*rr,yy,Math.sin(a)*rr,6);
-    }
-  }
-  /* 盘后远山两层 */
-  const N1=pc(700,360),N2=pc(700,360);
-  for(let i=0;i<N1;i++){const u=rndRange(-1,1);put(u*18,6.5+rndRange(0,1.6),-20,0);}
-  for(let i=0;i<N2;i++){const u=rndRange(-1,1);put(u*18,5.0+rndRange(0,1.4),-15,1);}
-  for(let i=0;i<13;i++){
-    const u=(i/12)*2-1,cy=5.0+rndRange(0,0.6);
-    for(let j=0;j<50;j++){const a=Math.random()*TAU,r=Math.random();
-      put(u*18+Math.cos(a)*r*1.5,cy+Math.sin(a)*r*0.5,-13,2);}
-  }
-  for(let i=0;i<240;i++){const t=i/240,u=Math.sin(t*3.0)*0.7;
-    put(u*18+rndRange(-0.6,0.6),4.8+rndRange(-0.2,0.2),-11,3);}
-  for(let i=0;i<240;i++){put(rndRange(-1,1)*18,4.6+rndRange(0,0.6),-10,4);}
-  for(let b=0;b<3;b++){const bx=rndRange(-0.6,0.6),by=rndRange(7.2,8.5);
-    for(let j=0;j<6;j++){const off=j-2.5;put(bx*18+off*0.3,by,-14,5);}}
-  bgLandGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(P),3));
-  bgLandGeo.setAttribute('aSeed',new THREE.BufferAttribute(new Float32Array(S),1));
-  bgLandGeo.setAttribute('aType',new THREE.BufferAttribute(new Float32Array(T),1));
-}
-const bgLandMat=new THREE.ShaderMaterial({
-  uniforms:{uTime:{value:0},uPix:{value:Math.min(2,window.devicePixelRatio||1)},uW:{value:new THREE.Vector4(1,0,0,0)}},
-  transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
-  vertexShader:`
-    attribute float aSeed;attribute float aType;uniform float uTime,uPix;
-    varying float vA;varying float vT;
-    void main(){
-      vT=aType;
-      vA=0.55+0.45*sin(uTime*(0.4+aSeed)+aSeed*20.0);
-      vec3 p=position;p.y+=sin(uTime*0.3+aSeed*6.2831)*0.2;
-      vec4 mv=modelViewMatrix*vec4(p,1.0);
-      float ts=aType>2.5?1.4:1.0;
-      gl_PointSize=(1.0+aSeed*1.4)*ts*uPix*(74.0/-mv.z);
-      gl_Position=projectionMatrix*mv;
-    }`,
+const bgTexUrls=[
+  'assets/background/bg-spring.webp',
+  'assets/background/bg-summer.webp',
+  'assets/background/bg-autumn.webp',
+  'assets/background/bg-winter.webp'
+];
+const bgTex=bgTexUrls.map(u=>{const t=new THREE.TextureLoader().load(u);t.encoding=THREE.sRGBEncoding;return t;});
+const bgSceneryMat=new THREE.ShaderMaterial({
+  uniforms:{t0:{value:bgTex[0]},t1:{value:bgTex[1]},t2:{value:bgTex[2]},t3:{value:bgTex[3]},
+    uW:{value:new THREE.Vector4(1,0,0,0)}},
+  transparent:true,depthWrite:false,
+  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`
-    uniform vec4 uW;varying float vA;varying float vT;
+    uniform sampler2D t0,t1,t2,t3;uniform vec4 uW;varying vec2 vUv;
     void main(){
-      vec2 d=gl_PointCoord-0.5;float r=length(d);
-      vec3 col=uW.x*vec3(0.98,0.55,0.72)+uW.y*vec3(0.35,0.80,0.50)
-              +uW.z*vec3(0.98,0.60,0.25)+uW.w*vec3(0.60,0.80,0.95);
-      float bright,aMul;
-      if(vT>5.5){bright=1.15;aMul=0.95;}
-      else if(vT>2.5){bright=1.12;aMul=0.95;}
-      else{bright=1.0;aMul=0.72;}
-      col=col*1.05*bright;
-      float core=exp(-r*r*24.0)*0.20,halo=pow(max(0.0,1.0-r),1.6)*0.9;
-      float a=(core+halo)*vA*aMul;
-      if(a<0.01)discard;
-      gl_FragColor=vec4(col,a);
+      vec4 c=texture2D(t0,vUv)*uW.x+texture2D(t1,vUv)*uW.y+texture2D(t2,vUv)*uW.z+texture2D(t3,vUv)*uW.w;
+      float aL=smoothstep(0.0,0.18,vUv.x);
+      float aR=smoothstep(1.0,0.82,vUv.x);
+      float aB=smoothstep(0.0,0.24,vUv.y);
+      float aT=smoothstep(1.0,0.90,vUv.y);
+      gl_FragColor=vec4(c.rgb*0.92,aL*aR*aB*aT);
     }`
 });
-const bgLand=new THREE.Points(bgLandGeo,bgLandMat);bgLand.frustumCulled=false;bgGroup.add(bgLand);
+const bgScenery=new THREE.Mesh(new THREE.PlaneGeometry(64,25),bgSceneryMat);
+bgScenery.position.set(0,3.2,-27);bgScenery.frustumCulled=false;bgGroup.add(bgScenery);
 const DUST_N=pc(360,180);
 const dustGeo=new THREE.BufferGeometry();
 {
@@ -3376,7 +3337,7 @@ function animate(){
   headMat.uniforms.uTime.value=simTime;
   horMat.uniforms.uTime.value=simTime;
   dustMat.uniforms.uTime.value=simTime;
-  bgLandMat.uniforms.uTime.value=simTime;
+  bgScenery.lookAt(camera.position);
   auroraBoost+=(1-auroraBoost)*Math.min(1,sdt*0.8);
   /* 冬夜极光最盛（真实极光季），夏夜略收，跟着季节呼吸 */
   if(!paused){
@@ -3409,7 +3370,7 @@ function animate(){
   skyMat.uniforms.uTheme.value=theme;
   if(theme===1){
     skyMat.uniforms.uW.value.set(w[1]+w[0],w[2],w[3],w[4]);
-    bgLandMat.uniforms.uW.value.copy(skyMat.uniforms.uW.value);
+    bgSceneryMat.uniforms.uW.value.copy(skyMat.uniforms.uW.value);
     scene.fog.color.setHex(0x0a1626);
     key.color.setRGB(1.0,0.97,0.90);key.intensity=1.25;
     hemi.color.setRGB(0.86,0.91,1.0);hemi.intensity=0.9;
