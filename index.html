@@ -601,8 +601,9 @@ const groundMat=new THREE.ShaderMaterial({
     void main(){
       float mk=sectorMask(vXZ,uPointer);
       vec3 col=mix(uColA,uColB,mk);
-      float n=hash(floor(vXZ*3.0));
-      col*=0.90+0.16*n;
+      float n1=hash(floor(vXZ*2.0));
+      float n2=hash(floor(vXZ*7.0));
+      col*=0.88+0.10*n1+0.08*n2;
       vec3 haze=vec3(0.60,0.65,0.66);
       col=mix(col,haze,smoothstep(16.0,30.0,vR)*0.42);
       float a=smoothstep(30.0,13.0,vR)*0.96;
@@ -762,22 +763,7 @@ for(let i=0;i<FOL_N;i++){
     bgGroup.add(bm);bgFoliage.push(bm);
   }
 }
-/* 贴地草团：扁宽草甸平铺在盘外远侧空地，避开盘边一圈 */
-const grassFlat=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
-const GRD_N=pc(38,20);
-for(let i=0;i<GRD_N;i++){
-  const ang=Math.random()*TAU;
-  const rad=rndRange(12.8,20.5);
-  const mat=new THREE.MeshBasicMaterial({map:folTex.grass,transparent:true,depthWrite:false,fog:false});
-  const m=new THREE.Mesh(grassFlat,mat);
-  const h=rndRange(0.6,1.0),mir=Math.random()<0.5?-1:1;
-  m.scale.set(h*1.7*mir,1,h);
-  m.position.set(Math.cos(ang)*rad,0.03,Math.sin(ang)*rad);
-  m.userData.seed=Math.random()*TAU;
-  m.userData.amp=rndRange(0.04,0.07);
-  m.userData.mat=mat;m.userData.far=rad>17;m.userData.kind='grass';m.userData.op=1;m.userData.ang=ang;m.userData.flat=true;
-  bgGroup.add(m);bgFoliage.push(m);
-}
+/* 贴地草团不再单独铺片：grass.webp 根部深绿俯视会聚成暗圆斑；地面由 groundMat 季节铺色，灌丛留在主树丛中远景 */
 /* 远景缓移薄雾：柔边雾团在林带后横向漂移，增强空气透视 */
 const mistCv=document.createElement('canvas');mistCv.width=256;mistCv.height=128;
 const mistCtx=mistCv.getContext('2d');
