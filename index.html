@@ -755,29 +755,51 @@ const shadowTex=new THREE.CanvasTexture(shadowCv);
 const shadowGeo=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
 const shadowMat=new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,fog:false,opacity:0.42});
 
+const trunkMat=new THREE.MeshStandardMaterial({color:0x4a3524,roughness:0.95,metalness:0,fog:false});
 const leafPlaneGeo=new THREE.PlaneGeometry(1,1);
-function photoMat(tex){
-  const m=new THREE.MeshLambertMaterial({map:tex,alphaTest:0.30,side:THREE.DoubleSide,fog:false});
-  m.toneMapped=false;return m;
+const crownMat=new THREE.MeshLambertMaterial({map:leafMap,alphaTest:0.35,side:THREE.DoubleSide,fog:false});
+crownMat.toneMapped=false;
+function jitterGeo(geo,amt,seed){
+  const pos=geo.attributes.position;const v=new THREE.Vector3();
+  let s=seed>>>0;
+  const rnd=()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};
+  for(let i=0;i<pos.count;i++){v.fromBufferAttribute(pos,i);v.multiplyScalar(1+(rnd()-0.5)*amt);pos.setXYZ(i,v.x,v.y,v.z);}
+  geo.computeVertexNormals();
 }
-const treePhotoMat=photoMat(folTex.tree);
-const bushPhotoMat=photoMat(folTex.bush);
-function makeTree3D(h,seed,kind,cross){
+const innerGeoA=new THREE.SphereGeometry(1,14,11);jitterGeo(innerGeoA,0.18,11);
+const innerGeoB=new THREE.SphereGeometry(1,14,11);jitterGeo(innerGeoB,0.18,29);
+const innerMat=new THREE.MeshLambertMaterial({color:0x244a18,fog:false});
+innerMat.toneMapped=false;
+const _m4=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_s=new THREE.Vector3(),_p=new THREE.Vector3(),_c=new THREE.Color();
+function makeTree3D(h,seed,kind){
   const grp=new THREE.Group();
-  const mat=kind==='bush'?bushPhotoMat:treePhotoMat;
-  const w=h*(kind==='bush'?0.95:1.05);
-  const p1=new THREE.Mesh(leafPlaneGeo,mat);
-  p1.scale.set(w,h,1);p1.position.y=h/2;
-  grp.add(p1);
-  if(cross){
-    for(let k=1;k<3;k++){
-      const p=new THREE.Mesh(leafPlaneGeo,mat);
-      p.scale.set(w,h,1);p.position.y=h/2;p.rotation.y=k*Math.PI/3;
-      grp.add(p);
-    }
-    grp.rotation.y=Math.random()*TAU;
+  const trunkH=h*0.45;
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(h*0.035,h*0.075,trunkH,7),trunkMat);
+  trunk.position.y=trunkH/2;grp.add(trunk);
+  const br=4+((seed*7)|0)%2;
+  for(let b=0;b<br;b++){
+    const ba=seed+b*TAU/br,bl=h*0.27;
+    const branch=new THREE.Mesh(new THREE.CylinderGeometry(h*0.012,h*0.022,bl,5),trunkMat);
+    branch.position.set(Math.cos(ba)*bl*0.36,trunkH+h*0.04,Math.sin(ba)*bl*0.36);
+    branch.rotation.z=Math.cos(ba)*0.62;branch.rotation.x=-Math.sin(ba)*0.62;
+    grp.add(branch);
   }
-  grp.userData.leafMats=[mat];
+  const cy=trunkH+h*0.18,rx=h*(kind==='bush'?0.38:0.42),ry=h*(kind==='bush'?0.24:0.30),rz=rx;
+  const inner=new THREE.Mesh(((seed*7)|0)%2===0?innerGeoA:innerGeoB,innerMat);
+  inner.position.set(0,cy,0);inner.scale.set(rx*0.82,ry*0.82,rz*0.82);grp.add(inner);
+  const N=kind==='bush'?Math.round(h*90):Math.round(h*170);
+  const crown=new THREE.InstancedMesh(leafPlaneGeo,crownMat,N);
+  for(let i=0;i<N;i++){
+    const th=Math.random()*TAU,ph=Math.acos(2*Math.random()-1),rr=0.55+0.45*Math.random();
+    _p.set(rr*Math.sin(ph)*Math.cos(th)*rx,cy+rr*Math.cos(ph)*ry,rr*Math.sin(ph)*Math.sin(th)*rz);
+    _e.set(rndRange(-0.8,0.8),Math.random()*TAU,rndRange(-0.8,0.8));_q.setFromEuler(_e);
+    const ls=h*rndRange(0.13,0.19);_s.set(ls,ls,ls);
+    _m4.compose(_p,_q,_s);crown.setMatrixAt(i,_m4);
+    const sh=rndRange(0.88,1.05);_c.setRGB(sh,sh,sh);crown.setColorAt(i,_c);
+  }
+  crown.instanceMatrix.needsUpdate=true;
+  grp.add(crown);
+  grp.userData.leafMats=[crownMat,innerMat];
   return grp;
 }
 /* 主树丛：近景大树—中景灌树—远景草灌，三层错落环绕；整体外推避免树冠遮挡盘面 */
@@ -796,11 +818,9 @@ for(let i=0;i<FOL_N;i++){
   }
   const px=Math.cos(ang)*rad,pz=Math.sin(ang)*rad;
   const seed=Math.random()*TAU;
-  const near=layer<0.58;
   let m;
   if(kind!=='grass'){
-    m=makeTree3D(h,seed,kind,!near);
-    if(near)m.rotation.y=ang+Math.PI;
+    m=makeTree3D(h,seed,kind);
     m.position.set(px,0.02,pz);
     m.userData.is3D=true;
   }else{
@@ -962,6 +982,12 @@ const folTint=[
 ];
 const folFog=new THREE.Color(0.66,0.70,0.72);
 /* 3D 树叶季节浓绿色板（春嫩绿/夏浓绿/秋金橙/冬霜白），不贴图、直接作反照率 */
+const leafPal=[
+  new THREE.Color(0.13,0.35,0.10),
+  new THREE.Color(0.09,0.29,0.07),
+  new THREE.Color(0.86,0.52,0.16),
+  new THREE.Color(0.74,0.80,0.85)
+];
 const folTmp=new THREE.Color();
 const bgTmp=new THREE.Color();
 const bgTint=[
@@ -1036,15 +1062,9 @@ function updateFoliageTint(A,B,pointer,winterW){
     folTmp.r=Math.min(1,folTmp.r+u.warm);
     folTmp.b=Math.min(1,Math.max(0,folTmp.b-u.warm*0.5));
     if(u.is3D){
-      const cur=mk>0.5?B:A;
-      const lm0=u.leafMats[0];
-      const base=u.kind==='bush'?folTex.bush:folTex.tree;
-      let tex=base;
-      if(cur===3)tex=u.kind==='bush'?folTex.bush_autumn:folTex.tree_autumn;
-      else if(cur===4)tex=u.kind==='bush'?folTex.bush_winter:folTex.tree_winter;
-      if(lm0.map!==tex)lm0.map=tex;
       for(const lm of u.leafMats){
-        lm.color.setRGB(1,1,1).multiplyScalar(u.v);
+        lm.color.copy(leafPal[ia]).lerp(leafPal[ib],mk);
+        lm.color.multiplyScalar(u.v);
         lm.color.lerp(folFog,u.far?0.38:0.06);
       }
     }else{
