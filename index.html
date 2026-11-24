@@ -562,6 +562,12 @@ function recolorTex(img,mode,kind){
     }else if(mode!=='orig'){
       if(mode==='aut'){
         if(gdom){p[i]=Math.min(255,r*1.15+g*0.35);p[i+1]=g*0.62;p[i+2]=b*0.35;}
+      }else if(mode==='spr'){
+        if(gdom){
+          const fl=kind==='mtn'?0:0.18;
+          if(Math.random()<fl){p[i]=250;p[i+1]=214;p[i+2]=224;}
+          else{p[i]=Math.min(255,r*1.06+18);p[i+1]=g*0.96+22;p[i+2]=b*0.70;}
+        }
       }else{
         if(lum<70){p[i]=r*0.55;p[i+1]=g*0.55;p[i+2]=b*0.6;}
         else if(gdom){const t=0.8;const R=209,G=209,B=225;p[i]=r+(R-r)*t;p[i+1]=g+(G-g)*t;p[i+2]=b+(B-b)*t;}
@@ -573,7 +579,7 @@ function recolorTex(img,mode,kind){
 }
 function loadVar(key,url,kind){
   const img=new Image();
-  img.onload=()=>{folVar[key]={orig:recolorTex(img,'orig',kind),aut:recolorTex(img,'aut',kind),win:recolorTex(img,'win',kind)};};
+  img.onload=()=>{folVar[key]={orig:recolorTex(img,'orig',kind),spr:recolorTex(img,'spr',kind),aut:recolorTex(img,'aut',kind),win:recolorTex(img,'win',kind)};};
   img.src=url;
 }
 ['tree','bush','grass'].forEach(k=>loadVar('fol.'+k,'assets/foliage/'+k+'.webp',k));
@@ -812,6 +818,94 @@ for(let i=0;i<TL_N;i++){
   m.userData.ang=a;
   bgGroup.add(m);bgTreelines.push(m);
 }
+/* 远景村落小屋：程序化贴图，四季坡地人家；冬季屋顶覆雪 */
+function makeHouseCv(snow){
+  const cv=document.createElement('canvas');cv.width=128;cv.height=160;
+  const x=cv.getContext('2d');
+  x.fillStyle='rgb(96,80,72)';x.fillRect(80,24,10,24);
+  x.fillStyle='rgb(150,104,66)';x.fillRect(34,80,60,60);
+  x.strokeStyle='rgba(90,58,36,0.5)';x.lineWidth=1;
+  for(let wy=90;wy<140;wy+=10){x.beginPath();x.moveTo(34,wy);x.lineTo(94,wy);x.stroke();}
+  x.beginPath();x.moveTo(64,34);x.lineTo(26,82);x.lineTo(102,82);x.closePath();
+  x.fillStyle=snow?'rgb(236,241,246)':'rgb(74,52,40)';x.fill();
+  if(snow){x.strokeStyle='rgb(248,250,252)';x.lineWidth=6;x.beginPath();x.moveTo(28,82);x.lineTo(100,82);x.stroke();}
+  x.fillStyle='rgb(70,48,34)';x.fillRect(56,112,16,28);
+  x.fillStyle='rgb(220,190,120)';x.fillRect(68,124,2.5,2.5);
+  x.fillStyle='rgb(240,200,120)';x.fillRect(40,94,12,12);x.fillRect(76,94,12,12);
+  x.strokeStyle='rgba(80,56,38,0.8)';x.lineWidth=1;
+  x.beginPath();x.moveTo(46,94);x.lineTo(46,106);x.moveTo(40,100);x.lineTo(52,100);x.stroke();
+  x.beginPath();x.moveTo(82,94);x.lineTo(82,106);x.moveTo(76,100);x.lineTo(88,100);x.stroke();
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;return t;
+}
+const houseWood=makeHouseCv(false),houseSnow=makeHouseCv(true);
+const bgHouses=[];
+const houseGeo=new THREE.PlaneGeometry(1,1);houseGeo.translate(0,0.5,0);
+const HOUSE_N=pc(3,2);
+for(let i=0;i<HOUSE_N;i++){
+  const ang=(i/HOUSE_N)*TAU+rndRange(-0.3,0.3);
+  const rad=rndRange(13.8,15.0);
+  const mat=new THREE.MeshBasicMaterial({map:houseWood,transparent:true,depthWrite:false,fog:false});
+  const h=new THREE.Mesh(houseGeo,mat);
+  const sc=rndRange(1.8,2.4);
+  h.scale.set(sc*(Math.random()<0.5?-1:1),sc,1);
+  h.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
+  h.lookAt(0,0,0);
+  h.userData.ang=ang;h.userData.mat=mat;h.userData.house=true;
+  const sh=new THREE.Mesh(shadowGeo,shadowMat);
+  sh.position.set(Math.cos(ang)*rad,0.015,Math.sin(ang)*rad);
+  sh.scale.set(sc*0.7,1,sc*0.55);
+  bgGroup.add(sh);bgGroup.add(h);bgHouses.push(h);
+}
+/* 背景季节动物：春蝶 / 夏蜓 / 秋松鼠，按季节权重在远景点缀 */
+const bgAnimals=[];
+function bgAnimalTex(url){const t=new THREE.TextureLoader().load(url);t.encoding=THREE.sRGBEncoding;return t;}
+const texDragon=bgAnimalTex('assets/animal/dragonfly.webp');
+const texSquir=bgAnimalTex('assets/animal/squirrel.webp');
+function makeButterflyTex(){
+  const cv=document.createElement('canvas');cv.width=64;cv.height=64;const x=cv.getContext('2d');
+  x.fillStyle='rgba(232,150,170,0.95)';
+  x.beginPath();x.ellipse(22,26,12,16,-0.5,0,TAU);x.fill();
+  x.beginPath();x.ellipse(42,26,12,16,0.5,0,TAU);x.fill();
+  x.fillStyle='rgba(150,90,120,0.9)';
+  x.beginPath();x.ellipse(22,44,7,9,-0.4,0,TAU);x.fill();
+  x.beginPath();x.ellipse(42,44,7,9,0.4,0,TAU);x.fill();
+  x.fillStyle='rgb(70,52,46)';x.fillRect(31,20,3,26);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;return t;
+}
+const texButter=makeButterflyTex();
+function spawnBgAnimal(tex,season,ang,rad,y,sc,fly){
+  const mat=new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false,fog:false,opacity:0});
+  const s=new THREE.Sprite(mat);
+  s.scale.set(sc,sc,1);
+  s.position.set(Math.cos(ang)*rad,y,Math.sin(ang)*rad);
+  s.userData={season:season,ang:ang,rad:rad,y:y,sc:sc,fly:fly,seed:Math.random()*TAU,baseOp:0.95};
+  bgGroup.add(s);bgAnimals.push(s);
+}
+spawnBgAnimal(texButter,1,Math.random()*TAU,17.0,2.2,1.2,true);
+spawnBgAnimal(texButter,1,Math.random()*TAU,18.2,2.6,1.1,true);
+spawnBgAnimal(texDragon,2,Math.random()*TAU,19.5,3.4,1.2,true);
+spawnBgAnimal(texDragon,2,Math.random()*TAU,19.0,3.0,1.1,true);
+spawnBgAnimal(texSquir,3,Math.random()*TAU,17.0,0.35,1.3,false);
+spawnBgAnimal(texSquir,3,Math.random()*TAU,18.2,0.35,1.2,false);
+function bgAnimalsUpdate(t,w){
+  for(const s of bgAnimals){
+    const u=s.userData;
+    const amt=easeW(w[u.season]);
+    if(amt<0.03){s.visible=false;continue;}
+    s.visible=true;
+    s.material.opacity=amt*u.baseOp;
+    if(u.fly){
+      const a=u.ang+t*0.12+u.seed;
+      s.position.x=Math.cos(a)*u.rad;
+      s.position.z=Math.sin(a)*u.rad;
+      s.position.y=u.y+Math.sin(t*1.1+u.seed)*0.35;
+      s.material.rotation=Math.sin(t*0.5+u.seed)*0.2;
+    }else{
+      s.position.x=Math.cos(u.ang)*u.rad+Math.sin(t*0.7+u.seed)*0.15;
+      s.position.z=Math.sin(u.ang)*u.rad+Math.cos(t*0.6+u.seed)*0.12;
+    }
+  }
+}
 const folTint=[
   new THREE.Color(0.93,0.99,0.74),
   new THREE.Color(0.40,0.72,0.38),
@@ -827,7 +921,12 @@ const bgTint=[
   new THREE.Color(1.00,0.56,0.24),
   new THREE.Color(0.76,0.80,0.86)
 ];
-function seasonTex(texSet,s){if(!texSet)return null;return s===3?texSet.aut:(s===4?texSet.win:texSet.orig);}
+function seasonTex(texSet,s){if(!texSet)return null;
+  if(s===3)return texSet.aut;
+  if(s===4)return texSet.win;
+  if(s===1)return texSet.spr||texSet.orig;
+  return texSet.orig;
+}
 function sectorMask(ang,pointer){
   const w=0.35;
   let aa=((ang%TAU)+TAU)%TAU,p=((pointer%TAU)+TAU)%TAU;
@@ -868,6 +967,14 @@ function updateFoliageTint(A,B,pointer,winterW){
     m.material.color.copy(bgTmp);
     const tf=mk>0.5?seasonTex(vT,B):seasonTex(vT,A);
     if(tf&&m.material.map!==tf)m.material.map=tf;
+  }
+  const houseWhite=new THREE.Color(1,1,1);
+  for(const h of bgHouses){
+    const mk=sectorMask(h.userData.ang,pointer);
+    const cur=mk>0.5?B:A;
+    bgTmp.copy(bA).lerp(bB,mk).lerp(houseWhite,0.35);
+    h.userData.mat.color.copy(bgTmp);
+    h.userData.mat.map=cur===4?houseSnow:houseWood;
   }
   for(const ms of bgMist)ms.material.opacity=ms.userData.baseOp*0.8;
   for(const m of bgFoliage){
@@ -3703,6 +3810,7 @@ function animate(){
   if(theme===1){
     skyMat.uniforms.uW.value.set(w[1]+w[0],w[2],w[3],w[4]);
     updateFoliageTint(A,B,pAngle,winterW);
+    bgAnimalsUpdate(simTime,w);
     scene.fog.color.setHex(0x0a1626);
     key.color.setRGB(1.0,0.97,0.90);key.intensity=1.25;
     hemi.color.setRGB(0.86,0.91,1.0);hemi.intensity=0.9;
