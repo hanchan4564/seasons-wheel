@@ -600,22 +600,8 @@ loadVar('mtn','assets/foliage/mountain.webp','mtn');
 loadVar('tl','assets/foliage/treeline.webp','tl');
 
 /* 背景承接地面：与盘面同构的指针扇区渐变，已扫方位铺新季、未扫留旧季 */
-const groundGeo=new THREE.RingGeometry(10.6,30,128,4);
+const groundGeo=new THREE.RingGeometry(10.6,30,96,1);
 groundGeo.rotateX(-Math.PI/2);
-{
-  const gp=groundGeo.attributes.position;
-  for(let i=0;i<gp.count;i++){
-    const x=gp.getX(i),z=gp.getZ(i);
-    const r=Math.hypot(x,z),a=Math.atan2(z,x);
-    const wr=THREE.MathUtils.smoothstep(r,12,28);
-    const n1=_fbm(Math.cos(a)*2.2+r*0.18,Math.sin(a)*2.2-r*0.18);
-    let y=2.8*wr*(0.30+0.70*n1);
-    const ridgeW=THREE.MathUtils.smoothstep(r,25.5,30.0);
-    y+=2.4*ridgeW*_fbm(Math.cos(a)*2.5,Math.sin(a)*2.5+7.7);
-    gp.setY(i,y);
-  }
-  groundGeo.computeVertexNormals();
-}
 const groundPal=[
   new THREE.Color(0.16,0.38,0.14),
   new THREE.Color(0.14,0.33,0.13),
@@ -625,10 +611,10 @@ const groundPal=[
 const groundMat=new THREE.ShaderMaterial({
   uniforms:{uColA:{value:new THREE.Color(1,1,1)},uColB:{value:new THREE.Color(1,1,1)},uPointer:{value:0}},
   transparent:true,depthWrite:false,
-  vertexShader:`varying float vR;varying vec2 vXZ;varying float vH;void main(){vR=length(position.xz);vXZ=position.xz;vH=position.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  vertexShader:`varying float vR;varying vec2 vXZ;void main(){vR=length(position.xz);vXZ=position.xz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`
     uniform vec3 uColA;uniform vec3 uColB;uniform float uPointer;
-    varying float vR;varying vec2 vXZ;varying float vH;
+    varying float vR;varying vec2 vXZ;
     float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
     float sectorMask(vec2 xz,float p){
       float ang=atan(xz.y,xz.x);
@@ -643,7 +629,6 @@ const groundMat=new THREE.ShaderMaterial({
       float n1=hash(floor(vXZ*2.0));
       float n2=hash(floor(vXZ*7.0));
       col*=0.93+0.10*n1+0.06*n2;
-      col*=mix(1.0,0.70,clamp(vH/2.2,0.0,1.0));
       vec3 haze=vec3(0.60,0.65,0.66);
       col=mix(col,haze,smoothstep(12.0,26.0,vR)*0.50);
       float a=smoothstep(30.0,13.0,vR)*0.96;
