@@ -736,32 +736,40 @@ function _vnoise(x,z){
 function _fbm(x,z){let v=0,amp=0.5,fr=1;for(let o=0;o<4;o++){v+=amp*_vnoise(x*fr,z*fr);amp*=0.5;fr*=2.1;}return v;}
 function makeRidge(R,H,seed,NS,K){
   const rnd=_mulberry((seed*1000)|0);
-  const pos=[],col=[],idx=[],peak=[];
-  const cFoot=new THREE.Color(0.24,0.38,0.20);
-  const cMid =new THREE.Color(0.37,0.47,0.33);
-  const cTop =new THREE.Color(0.58,0.64,0.63);
-  const peaks=[];const PN=8;
-  for(let p=0;p<PN;p++)peaks.push({a:rnd()*TAU,w:0.15+rnd()*0.20,h:0.5+rnd()*0.55});
+  const pos=[],col=[],idx=[];
+  const cFoot=new THREE.Color(0.20,0.34,0.18);
+  const cMid =new THREE.Color(0.34,0.45,0.30);
+  const cRock=new THREE.Color(0.50,0.52,0.50);
+  const peaks=[];const PN=4;
+  for(let p=0;p<PN;p++)peaks.push({a:rnd()*TAU,w:0.10+rnd()*0.12,h:0.5+rnd()*0.45});
+  const ridge=[];
   for(let i=0;i<=NS;i++){
     const a=i/NS*TAU;
     let pk=0;
-    for(const p of peaks){
-      const da=Math.atan2(Math.sin(a-p.a),Math.cos(a-p.a));
-      pk+=p.h*Math.exp(-(da*da)/(2*p.w*p.w));
-    }
-    const n=_fbm(Math.cos(a)*2.2+seed,Math.sin(a)*2.2-seed);
-    peak.push(H*(0.42+0.34*n+0.42*Math.min(1,pk)));
+    for(const p of peaks){const da=Math.atan2(Math.sin(a-p.a),Math.cos(a-p.a));pk+=p.h*Math.exp(-(da*da)/(2*p.w*p.w));}
+    const n1=_fbm(Math.cos(a)*1.6+seed,Math.sin(a)*1.6-seed);
+    const n2=_fbm(Math.cos(a)*4.5-seed,Math.sin(a)*4.5+seed);
+    ridge.push(H*(0.46+0.24*n1+0.16*n2+0.30*Math.min(1,pk)));
   }
   for(let k=0;k<=K;k++){
     const t=k/K;
+    const prof=Math.pow(t,0.72);
+    const hump=H*0.16*Math.sin(Math.min(t/0.22,1)*Math.PI/2);
+    const rx=R-4.2*t;
     for(let i=0;i<=NS;i++){
       const a=i/NS*TAU;
-      const fold=Math.sin(a*9+seed)*0.08*H*t+Math.sin(a*23-seed*2.0)*0.05*H*t;
-      const rx=R-3.5*t;
-      const y=peak[i]*t+fold;
-      pos.push(Math.cos(a)*rx,Math.max(0,y),Math.sin(a)*rx);
-      const f=Math.min(1,y/(H*1.1));
-      const c=f<0.5?cFoot.clone().lerp(cMid,f*2):cMid.clone().lerp(cTop,(f-0.5)*2);
+      const gn1=_fbm(a*5.0+seed,seed*1.3);
+      const gn2=_fbm(a*11.0-seed,seed*2.1);
+      const g=((gn1-0.5)*0.7+(gn2-0.5)*0.3)*2*t*H*0.22;
+      let y=ridge[i]*prof+hump-g;
+      y=Math.max(0,y);
+      const wob=(gn1-0.5)*0.45*t;
+      pos.push(Math.cos(a)*(rx+wob),y,Math.sin(a)*(rx+wob));
+      const f=Math.min(1,y/(H*1.15));
+      const c=f<0.55?cFoot.clone().lerp(cMid,f/0.55):cMid.clone().lerp(cRock,(f-0.55)/0.45);
+      const bn=0.84+0.30*_fbm(Math.cos(a)*3+seed,t*2+seed);
+      const shade=g>0?0.84:1.05;
+      c.multiplyScalar(bn*shade);
       col.push(c.r,c.g,c.b);
     }
   }
