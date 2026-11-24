@@ -370,9 +370,9 @@ const FLOWER_COUNT=pc(2000,1000);
 /* 季节调色板：0 裸盘 1 春 2 夏 3 秋 4 冬 */
 const SEASONS=[
   {base:[0.02,0.03,0.02],tip:[0.03,0.04,0.03],h:0.0, droop:0.0, flower:0},
-  {base:[0.06,0.22,0.07],tip:[0.30,0.64,0.30],h:1.15,droop:0.10,flower:1},
-  {base:[0.03,0.17,0.04],tip:[0.22,0.52,0.16],h:1.45,droop:0.05,flower:0.02},
-  {base:[0.30,0.16,0.05],tip:[0.98,0.52,0.16],h:1.12,droop:0.50,flower:0},
+  {base:[0.05,0.18,0.06],tip:[0.23,0.50,0.21],h:1.15,droop:0.10,flower:1},
+  {base:[0.04,0.15,0.05],tip:[0.17,0.42,0.14],h:1.45,droop:0.05,flower:0.02},
+  {base:[0.28,0.15,0.05],tip:[0.86,0.45,0.15],h:1.12,droop:0.50,flower:0},
   {base:[0.30,0.34,0.40],tip:[0.78,0.83,0.92],h:0.62,droop:0.20,flower:0}
 ];
 const SEASON_META=[
@@ -731,6 +731,16 @@ for(let i=0;i<FAR_N;i++){
 
 const bgFoliage=[];
 const folPlane=new THREE.PlaneGeometry(1,1);folPlane.translate(0,0.5,0);
+/* 接地阴影：树下一片柔边暗贴，消除面片悬浮贴画感 */
+const shadowCv=document.createElement('canvas');shadowCv.width=128;shadowCv.height=128;
+const shadowCtx=shadowCv.getContext('2d');
+const shadowGrad=shadowCtx.createRadialGradient(64,64,4,64,64,62);
+shadowGrad.addColorStop(0,'rgba(0,0,0,0.40)');
+shadowGrad.addColorStop(1,'rgba(0,0,0,0)');
+shadowCtx.fillStyle=shadowGrad;shadowCtx.fillRect(0,0,128,128);
+const shadowTex=new THREE.CanvasTexture(shadowCv);
+const shadowGeo=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
+const shadowMat=new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,fog:false,opacity:0.55});
 /* 主树丛：近景大树—中景灌树—远景草灌，三层错落环绕；整体外推避免树冠遮挡盘面 */
 const FOL_N=pc(66,36);
 for(let i=0;i<FOL_N;i++){
@@ -753,6 +763,11 @@ for(let i=0;i<FOL_N;i++){
   m.userData.seed=Math.random()*TAU;
   m.userData.amp=kind==='grass'?rndRange(0.05,0.09):rndRange(0.015,0.030);
   m.userData.mat=mat;m.userData.far=far;m.userData.kind=kind;m.userData.op=1;m.userData.ang=ang;
+  const sh=new THREE.Mesh(shadowGeo,shadowMat);
+  const sr=h*0.55;
+  sh.position.set(Math.cos(ang)*rad,0.015,Math.sin(ang)*rad);
+  sh.scale.set(sr,1,sr*0.8);
+  bgGroup.add(sh);
   bgGroup.add(m);bgFoliage.push(m);
 }
 /* 贴地草团不再单独铺片：grass.webp 根部深绿俯视会聚成暗圆斑；地面由 groundMat 季节铺色，灌丛留在主树丛中远景 */
@@ -803,7 +818,7 @@ const folTint=[
   new THREE.Color(1.00,0.48,0.16),
   new THREE.Color(0.82,0.80,0.88)
 ];
-const folFog=new THREE.Color(0.62,0.65,0.68);
+const folFog=new THREE.Color(0.66,0.70,0.72);
 const folTmp=new THREE.Color();
 const bgTmp=new THREE.Color();
 const bgTint=[
@@ -842,7 +857,7 @@ function updateFoliageTint(A,B,pointer,winterW){
   }
   for(const m of bgFarMountains){
     const mk=sectorMask(m.userData.ang,pointer);
-    bgTmp.copy(bA).lerp(bB,mk).multiplyScalar(0.85);
+    bgTmp.copy(bA).lerp(bB,mk).lerp(folFog,0.45);
     m.material.color.copy(bgTmp);
     const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);
     if(tf&&m.material.map!==tf)m.material.map=tf;
@@ -858,7 +873,7 @@ function updateFoliageTint(A,B,pointer,winterW){
   for(const m of bgFoliage){
     const mk=sectorMask(m.userData.ang,pointer);
     folTmp.copy(fA).lerp(fB,mk);
-    if(m.userData.far)folTmp.lerp(folFog,0.35);
+    if(m.userData.far)folTmp.lerp(folFog,0.50);
     m.userData.mat.color.copy(folTmp);
     const fv=folVar['fol.'+m.userData.kind];
     const tf=mk>0.5?seasonTex(fv,B):seasonTex(fv,A);
@@ -2014,7 +2029,7 @@ const grassMat=new THREE.ShaderMaterial({
       vec2 tang=vec2(-sin(aAngle),cos(aAngle));
       world.xz+=tang*brush*0.11*y*y;
       float mottle=0.85+0.30*h21(floor(aOffset*0.7));
-      vec3 col=mix(base,tip,y)*(0.78+0.44*aData.z)*mottle;
+      vec3 col=mix(base,tip,y)*(0.82+0.26*aData.z)*mottle;
       /* 自然的色相差异：一部分偏冷青、一部分偏暖黄，不再是同一块荧光绿 */
       float hv=h21(floor(aOffset*0.9)+3.7);
       col=mix(col,col*vec3(0.84,1.02,1.14),smoothstep(0.62,0.95,hv)*0.55);
@@ -2032,7 +2047,7 @@ const grassMat=new THREE.ShaderMaterial({
       col=mix(vec3(dot(col,vec3(0.30,0.55,0.15))),col,0.93);
       /* 根部压深、叶尖提亮拉出层次；叶尖再叠一层柔亮高光 */
       col*=mix(0.32,1.05,smoothstep(0.0,0.6,y));
-      col+=tip*smoothstep(0.55,1.0,y)*0.10;
+      col+=tip*smoothstep(0.55,1.0,y)*0.06;
       /* 季节交替的"生长锋面"：指针扫过处草尖泛起一层新季微光 */
       float dd=abs(mod(aAngle-uPointer+3.14159265,6.28318530718)-3.14159265);
       float front=exp(-dd*dd*520.0);
