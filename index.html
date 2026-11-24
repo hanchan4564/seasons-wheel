@@ -724,28 +724,44 @@ for(let i=0;i<BIRD_N;i++){
   bgGroup.add(b);bgBirds.push(b);
 }
 
-/* 远山环：环绕一周的程序化 3D 山脊，峰峦起伏受光，任意视角皆有山景围合 */
+/* 远山：噪声峰群驱动的连绵山脊，坡陡直可见，峰谷错落、非规则圆环 */
 function _mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-function makeRidgeGeo(R,H,seed,NS){
+function _vhash(x,z){const s=Math.sin(x*127.1+z*311.7)*43758.5453;return s-Math.floor(s);}
+function _vnoise(x,z){
+  const xi=Math.floor(x),zi=Math.floor(z),xf=x-xi,zf=z-zi;
+  const u=xf*xf*(3-2*xf),v=zf*zf*(3-2*zf);
+  const a=_vhash(xi,zi),b=_vhash(xi+1,zi),c=_vhash(xi,zi+1),d=_vhash(xi+1,zi+1);
+  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+}
+function _fbm(x,z){let v=0,amp=0.5,fr=1;for(let o=0;o<4;o++){v+=amp*_vnoise(x*fr,z*fr);amp*=0.5;fr*=2.1;}return v;}
+function makeRidge(R,H,seed,NS,K){
   const rnd=_mulberry((seed*1000)|0);
-  const pos=[],col=[],idx=[],peak=[],K=7;
-  const cFoot=new THREE.Color(0.26,0.40,0.22);
-  const cMid =new THREE.Color(0.38,0.48,0.34);
-  const cTop =new THREE.Color(0.56,0.62,0.61);
+  const pos=[],col=[],idx=[],peak=[];
+  const cFoot=new THREE.Color(0.24,0.38,0.20);
+  const cMid =new THREE.Color(0.37,0.47,0.33);
+  const cTop =new THREE.Color(0.58,0.64,0.63);
+  const peaks=[];const PN=8;
+  for(let p=0;p<PN;p++)peaks.push({a:rnd()*TAU,w:0.15+rnd()*0.20,h:0.5+rnd()*0.55});
   for(let i=0;i<=NS;i++){
     const a=i/NS*TAU;
-    const h=H*(0.64+0.11*Math.sin(a*3+seed)+0.08*Math.sin(a*7+seed*1.7)+0.06*Math.sin(a*13+seed*2.3)+0.05*Math.sin(a*29+seed*3.1)+0.07*(rnd()-0.5));
-    peak.push(Math.max(H*0.38,h));
+    let pk=0;
+    for(const p of peaks){
+      const da=Math.atan2(Math.sin(a-p.a),Math.cos(a-p.a));
+      pk+=p.h*Math.exp(-(da*da)/(2*p.w*p.w));
+    }
+    const n=_fbm(Math.cos(a)*2.2+seed,Math.sin(a)*2.2-seed);
+    peak.push(H*(0.42+0.34*n+0.42*Math.min(1,pk)));
   }
   for(let k=0;k<=K;k++){
     const t=k/K;
     for(let i=0;i<=NS;i++){
       const a=i/NS*TAU;
-      const fold=Math.sin(a*9+seed)*0.09*H*t+Math.sin(a*23-seed*2.0)*0.05*H*t;
+      const fold=Math.sin(a*9+seed)*0.08*H*t+Math.sin(a*23-seed*2.0)*0.05*H*t;
       const rx=R-3.5*t;
       const y=peak[i]*t+fold;
-      pos.push(Math.cos(a)*rx,y,Math.sin(a)*rx);
-      const c=t<0.5?cFoot.clone().lerp(cMid,t*2):cMid.clone().lerp(cTop,(t-0.5)*2);
+      pos.push(Math.cos(a)*rx,Math.max(0,y),Math.sin(a)*rx);
+      const f=Math.min(1,y/(H*1.1));
+      const c=f<0.5?cFoot.clone().lerp(cMid,f*2):cMid.clone().lerp(cTop,(f-0.5)*2);
       col.push(c.r,c.g,c.b);
     }
   }
@@ -764,17 +780,14 @@ function makeRidgeGeo(R,H,seed,NS){
 }
 const bgMountains=[];
 const bgFarMountains=[];
-function addRidge(R,H,seed,mat,arr){
-  const m=new THREE.Mesh(makeRidgeGeo(R,H,seed,128),mat);
-  m.frustumCulled=false;m.userData.ang=0;m.userData.ridge=true;
-  bgGroup.add(m);arr.push(m);return m;
-}
 const ridgeNearMat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false});
-const ridgeMidMat =new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false,transparent:true,opacity:0.82});
-const ridgeFarMat =new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false,transparent:true,opacity:0.60});
-addRidge(21.5,6.2,3.1,ridgeNearMat,bgMountains);
-addRidge(24.5,5.2,5.3,ridgeMidMat,bgMountains);
-addRidge(27.5,4.4,7.7,ridgeFarMat,bgFarMountains);
+const ridgeFarMat =new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false,transparent:true,opacity:0.55});
+const mtnNear=new THREE.Mesh(makeRidge(21.5,6.4,3.1,150,7),ridgeNearMat);
+mtnNear.frustumCulled=false;mtnNear.userData.ang=0;mtnNear.userData.ridge=true;
+bgGroup.add(mtnNear);bgMountains.push(mtnNear);
+const mtnFar=new THREE.Mesh(makeRidge(26.0,4.6,7.7,150,7),ridgeFarMat);
+mtnFar.frustumCulled=false;mtnFar.userData.ang=0;mtnFar.userData.ridge=true;
+bgGroup.add(mtnFar);bgFarMountains.push(mtnFar);
 
 const bgFoliage=[];
 const folPlane=new THREE.PlaneGeometry(1,1);folPlane.translate(0,0.5,0);
@@ -842,20 +855,20 @@ function makeTree3D(h,seed,kind){
   for(const c of centers){
     const lump=new THREE.Mesh(innerGeo,innerMat);
     lump.position.set(c.x,c.y,c.z);
-    lump.scale.set(rx*c.r*0.85,ry*c.r*0.85,rx*c.r*0.85);grp.add(lump);
+    lump.scale.set(rx*c.r*0.60,ry*c.r*0.60,rx*c.r*0.60);grp.add(lump);
   }
   const N=bush?Math.round(h*70):Math.round(h*120);
   const crown=new THREE.InstancedMesh(leafPlaneGeo,crownMat,N);
   for(let i=0;i<N;i++){
     const c=centers[(Math.random()*centers.length)|0];
-    const gx=(Math.random()+Math.random()-1)*rx*0.55;
-    const gy=(Math.random()+Math.random()-1)*ry*0.42;
-    const gz=(Math.random()+Math.random()-1)*rx*0.55;
+    const gx=(Math.random()+Math.random()-1)*rx*0.72;
+    const gy=(Math.random()+Math.random()-1)*ry*0.50;
+    const gz=(Math.random()+Math.random()-1)*rx*0.72;
     _p.set(c.x+gx,c.y+gy,c.z+gz);
     _e.set(rndRange(-0.8,0.8),Math.random()*TAU,rndRange(-0.8,0.8));_q.setFromEuler(_e);
-    const ls=h*rndRange(0.17,0.25);_s.set(ls,ls,ls);
+    const ls=h*rndRange(0.19,0.28);_s.set(ls,ls,ls);
     _m4.compose(_p,_q,_s);crown.setMatrixAt(i,_m4);
-    const sh=rndRange(0.72,0.96);_c.setRGB(sh,sh,sh);crown.setColorAt(i,_c);
+    const sh=rndRange(0.70,0.95);_c.setRGB(sh,sh,sh);crown.setColorAt(i,_c);
   }
   crown.instanceMatrix.needsUpdate=true;
   grp.add(crown);
@@ -3297,9 +3310,9 @@ const pm=(arr,c,o={})=>{const m=new THREE.MeshBasicMaterial(Object.assign({color
 }
 scene.add(springProp,summerProp,autumnProp,winterProp);
 
-/* 动物贴图精灵：秋松鼠 / 冬麻雀 / 夏蜓；抬高避免被高草遮挡，贴图始终压在草叶之上 */
+/* 动物贴图精灵：秋松鼠 / 冬麻雀 / 夏蜓；参与正常深度遮挡，避免强制浮在最前的粘贴感 */
 function makeAnimal(url,h){
-  const mat=new THREE.SpriteMaterial({transparent:true,depthWrite:false,depthTest:false,fog:false});
+  const mat=new THREE.SpriteMaterial({transparent:true,depthWrite:false,depthTest:true,fog:false});
   const sp=new THREE.Sprite(mat);
   sp.center.set(0.5,0);
   sp.renderOrder=20;
