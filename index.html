@@ -794,38 +794,50 @@ innerMat.toneMapped=false;
 const _m4=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_s=new THREE.Vector3(),_p=new THREE.Vector3(),_c=new THREE.Color();
 function makeTree3D(h,seed,kind){
   const grp=new THREE.Group();
-  const trunkH=h*0.45;
-  const lean=0.10;
-  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(h*0.032,h*0.085,trunkH,7),trunkMat);
+  const rng=_mulberry((seed*100000)|0);
+  const bush=kind==='bush';
+  const tp=bush?2:Math.floor(rng()*3);
+  let rx,ry,trunkH;
+  if(tp===0){rx=h*0.34;ry=h*0.36;trunkH=h*0.55;}
+  else if(tp===1){rx=h*0.45;ry=h*0.28;trunkH=h*0.45;}
+  else{rx=h*0.36;ry=h*0.22;trunkH=h*0.34;}
+  const lean=(rng()-0.5)*0.18;
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(h*0.032,h*0.088,trunkH,7),trunkMat);
   trunk.position.y=trunkH/2;
   trunk.rotation.z=Math.cos(seed)*lean;trunk.rotation.x=-Math.sin(seed)*lean;
   grp.add(trunk);
-  const br=5+((seed*7)|0)%2;
+  const br=4+Math.floor(rng()*3);
   for(let b=0;b<br;b++){
-    const ba=seed+b*TAU/br,bl=h*0.30;
+    const ba=seed+b*TAU/br,bl=h*(0.26+rng()*0.08);
     const branch=new THREE.Mesh(new THREE.CylinderGeometry(h*0.011,h*0.022,bl,5),trunkMat);
     branch.position.set(Math.cos(ba)*bl*0.40,trunkH+h*0.10,Math.sin(ba)*bl*0.40);
-    branch.rotation.z=Math.cos(ba)*0.55;branch.rotation.x=-Math.sin(ba)*0.55;
+    const tilt=0.45+rng()*0.20;
+    branch.rotation.z=Math.cos(ba)*tilt;branch.rotation.x=-Math.sin(ba)*tilt;
     grp.add(branch);
   }
-  const cy=trunkH+h*0.18,rx=h*(kind==='bush'?0.38:0.42),ry=h*(kind==='bush'?0.24:0.30),rz=rx;
-  const innerGeo=((seed*7)|0)%2===0?innerGeoA:innerGeoB;
-  const inner=new THREE.Mesh(innerGeo,innerMat);
-  inner.position.set(0,cy,0);inner.scale.set(rx*0.88,ry*0.72,rz*0.88);grp.add(inner);
-  const inner2=new THREE.Mesh(innerGeo,innerMat);
-  inner2.position.set(Math.cos(seed)*rx*0.50,cy+ry*0.16,Math.sin(seed)*rz*0.50);
-  inner2.scale.set(rx*0.52,ry*0.50,rz*0.52);grp.add(inner2);
-  const inner3=new THREE.Mesh(innerGeo,innerMat);
-  inner3.position.set(Math.cos(seed+Math.PI)*rx*0.44,cy-ry*0.08,Math.sin(seed+Math.PI)*rz*0.44);
-  inner3.scale.set(rx*0.46,ry*0.44,rz*0.46);grp.add(inner3);
-  const inner4=new THREE.Mesh(innerGeo,innerMat);
-  inner4.position.set(Math.cos(seed+2.1)*rx*0.30,cy+ry*0.30,Math.sin(seed+2.1)*rz*0.30);
-  inner4.scale.set(rx*0.36,ry*0.34,rz*0.36);grp.add(inner4);
-  const N=kind==='bush'?Math.round(h*90):Math.round(h*170);
+  const cy=trunkH+h*0.16;
+  const innerGeo=rng()<0.5?innerGeoA:innerGeoB;
+  const centers=[{x:0,y:cy,z:0,r:0.85}];
+  const cl=3+Math.floor(rng()*3);
+  for(let k=0;k<cl;k++){
+    const ca=rng()*TAU,cr=rng()*rx*0.45;
+    const offY=(rng()-0.35)*ry*0.55;
+    const cs=0.42+rng()*0.30;
+    centers.push({x:Math.cos(ca)*cr,y:cy+offY,z:Math.sin(ca)*cr,r:cs});
+  }
+  for(const c of centers){
+    const lump=new THREE.Mesh(innerGeo,innerMat);
+    lump.position.set(c.x,c.y,c.z);
+    lump.scale.set(rx*c.r,ry*c.r,rx*c.r);grp.add(lump);
+  }
+  const N=bush?Math.round(h*90):Math.round(h*170);
   const crown=new THREE.InstancedMesh(leafPlaneGeo,crownMat,N);
   for(let i=0;i<N;i++){
-    const th=Math.random()*TAU,ph=Math.acos(2*Math.random()-1),rr=0.55+0.45*Math.random();
-    _p.set(rr*Math.sin(ph)*Math.cos(th)*rx*1.05,cy+rr*Math.cos(ph)*ry,rr*Math.sin(ph)*Math.sin(th)*rz*1.05);
+    const c=centers[(Math.random()*centers.length)|0];
+    const gx=(Math.random()+Math.random()-1)*rx*0.34;
+    const gy=(Math.random()+Math.random()-1)*ry*0.30;
+    const gz=(Math.random()+Math.random()-1)*rx*0.34;
+    _p.set(c.x+gx,c.y+gy,c.z+gz);
     _e.set(rndRange(-0.8,0.8),Math.random()*TAU,rndRange(-0.8,0.8));_q.setFromEuler(_e);
     const ls=h*rndRange(0.13,0.19);_s.set(ls,ls,ls);
     _m4.compose(_p,_q,_s);crown.setMatrixAt(i,_m4);
@@ -2298,7 +2310,7 @@ const grass=new THREE.Mesh(grassGeo,grassMat);
 grass.frustumCulled=false;discGroup.add(grass);
 
 /* 盘外背景草：盘缘铺到远山，复用盘内同一套风动与季节着色 */
-const BG_BLADE=pc(36000,12000);
+const BG_BLADE=pc(58000,20000);
 const bgGrassGeo=bladeGeometry();
 {
   const off=new Float32Array(BG_BLADE*2),dat=new Float32Array(BG_BLADE*4),ang=new Float32Array(BG_BLADE);
@@ -2307,7 +2319,7 @@ const bgGrassGeo=bladeGeometry();
     const a=Math.random()*TAU;
     off[i*2]=Math.cos(a)*r;off[i*2+1]=Math.sin(a)*r;
     ang[i]=a;
-    dat[i*4]=rndRange(0.70,1.15);dat[i*4+1]=Math.random()*TAU;dat[i*4+2]=Math.random();dat[i*4+3]=Math.random()*TAU;
+    dat[i*4]=rndRange(0.74,1.60);dat[i*4+1]=Math.random()*TAU;dat[i*4+2]=Math.random();dat[i*4+3]=Math.random()*TAU;
   }
   bgGrassGeo.setAttribute('aOffset',new THREE.InstancedBufferAttribute(off,2));
   bgGrassGeo.setAttribute('aData',new THREE.InstancedBufferAttribute(dat,4));
