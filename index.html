@@ -631,12 +631,12 @@ const bgGround=new THREE.Mesh(groundGeo,groundMat);bgGround.position.y=0.02;bgGr
 /* 单侧远侧水湾：只在盘外一方位铺一弯短溪塘，两端收窄消失，不绕盘成圈；四季分化为春溪/夏湖/秋涧/冬冰 */
 const riverGeo=new THREE.BufferGeometry();
 {
-  const RN=80,SEG=Math.PI*0.7,ang0=-Math.PI/2,rPos=[],rUv=[],rIdx=[];
+  const RN=96,SEG=Math.PI*1.1,ang0=-Math.PI/2,rPos=[],rUv=[],rIdx=[];
   for(let i=0;i<=RN;i++){
     const t=i/RN,th=ang0+(t-0.5)*SEG;
-    const rc=19.5+1.2*Math.sin(th*2.0+0.5);
-    const end=Math.min(1,t/0.18,(1-t)/0.18);
-    const hw=0.85*Math.max(0.12,end);
+    const rc=18.6+1.2*Math.sin(th*2.0+0.5);
+    const end=Math.min(1,t/0.16,(1-t)/0.16);
+    const hw=2.0*Math.max(0.12,end);
     const ri=rc-hw,ro=rc+hw;
     rPos.push(Math.cos(th)*ri,0.03,Math.sin(th)*ri, Math.cos(th)*ro,0.03,Math.sin(th)*ro);
     rUv.push(t,0, t,1);
@@ -659,6 +659,10 @@ const riverMat=new THREE.ShaderMaterial({
   fragmentShader:`
     uniform vec3 uColA;uniform vec3 uColB;uniform float uPointer;uniform float uTime;
     varying vec2 vUv;varying vec2 vXZ;
+    float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    float vnoise(vec2 p){vec2 i=floor(p);vec2 v=fract(p);v=v*v*(3.0-2.0*v);
+      float a=hash(i),b=hash(i+vec2(1.0,0.0)),c=hash(i+vec2(0.0,1.0)),d=hash(i+vec2(1.0,1.0));
+      return mix(mix(a,b,v.x),mix(c,d,v.x),v.y);}
     float sectorMask(vec2 xz,float p){
       float ang=atan(xz.y,xz.x);
       float aa=mod(ang,6.2831853),pp=mod(p,6.2831853);
@@ -668,15 +672,20 @@ const riverMat=new THREE.ShaderMaterial({
     }
     void main(){
       float mk=sectorMask(vXZ,uPointer);
-      vec3 col=mix(uColA,uColB,mk);
-      float rip=sin(vUv.x*40.0-uTime*1.8)*0.5+0.5;
-      col+=vec3(0.32,0.38,0.38)*rip*0.35;
-      float sheen=pow(1.0-abs(vUv.y-0.5)*2.0,1.5);
-      col+=vec3(0.30,0.36,0.38)*sheen*(0.28+0.30*rip);
-      float crack=smoothstep(0.965,0.995,abs(sin(vUv.x*18.0+vUv.y*11.0)));
-      col+=vec3(0.55,0.62,0.68)*crack*0.25;
-      float edge=smoothstep(0.0,0.12,vUv.x)*smoothstep(1.0,0.88,vUv.x);
-      float a=edge*0.78;
+      vec3 bed=mix(uColA,uColB,mk);
+      float cross=1.0-abs(vUv.y-0.5)*2.0;
+      float depth=smoothstep(0.0,0.85,cross);
+      vec3 col=bed*mix(0.42,0.95,depth);
+      float n1=vnoise(vec2(vUv.x*26.0-uTime*1.5,vUv.y*7.0));
+      float n2=vnoise(vec2(vUv.x*11.0-uTime*0.9,vUv.y*16.0+7.0));
+      float rip=n1*0.6+n2*0.4;
+      col*=0.74+0.52*rip;
+      float ridge=smoothstep(0.55,0.95,rip);
+      col+=vec3(0.18,0.24,0.24)*ridge*0.6*depth;
+      float sheen=pow(cross,2.0);
+      col+=vec3(0.22,0.28,0.28)*sheen*(0.16+0.26*rip);
+      float edge=smoothstep(0.0,0.10,vUv.x)*smoothstep(1.0,0.90,vUv.x);
+      float a=edge*mix(0.70,0.88,depth);
       gl_FragColor=vec4(col,a);
     }`
 });
@@ -706,40 +715,37 @@ for(let i=0;i<BIRD_N;i++){
   bgGroup.add(b);bgBirds.push(b);
 }
 
-/* 远山环：沿转盘一周布置山峦横幅，任意视角环绕都有山景围合 */
-const mountainTex=new THREE.TextureLoader().load('assets/foliage/mountain.webp');
-mountainTex.encoding=THREE.sRGBEncoding;
-const bgMountains=[];
-const mtnGeo=new THREE.PlaneGeometry(16,9);
-mtnGeo.translate(0,4.5,0);
-const MTN_N=pc(12,9);
-for(let i=0;i<MTN_N;i++){
-  const a=i/MTN_N*TAU;
-  const mat=new THREE.MeshBasicMaterial({map:mountainTex,transparent:true,depthWrite:false,fog:false});
-  const m=new THREE.Mesh(mtnGeo,mat);
-  m.frustumCulled=false;
-  m.scale.x*=(Math.random()<0.5?-1:1);
-  m.position.set(Math.cos(a)*19.5,0,Math.sin(a)*19.5);
-  m.lookAt(0,4.5,0);
-  m.userData.ang=a;
-  bgGroup.add(m);bgMountains.push(m);
+/* 远山环：环绕一周的程序化 3D 山脊，峰峦起伏受光，任意视角皆有山景围合 */
+function _mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function makeRidgeGeo(R,H,seed,NS){
+  const rnd=_mulberry((seed*1000)|0);
+  const pos=[],idx=[],peak=[];
+  for(let i=0;i<=NS;i++){
+    const a=i/NS*TAU;
+    const h=H*(0.35+0.34*Math.sin(a*3+seed)+0.24*Math.sin(a*7+seed*1.7)+0.18*(rnd()-0.5));
+    peak.push(Math.max(H*0.14,h));
+  }
+  for(let i=0;i<=NS;i++){
+    const a=i/NS*TAU,x=Math.cos(a),z=Math.sin(a);
+    pos.push(x*R,0,z*R, x*(R-2.2),peak[i],z*(R-2.2));
+  }
+  for(let i=0;i<NS;i++){const b=i*2,c=b+2,t=b+1,t2=c+1;idx.push(b,c,t,c,t2,t);}
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setIndex(idx);g.computeVertexNormals();
+  return g;
 }
+const bgMountains=[];
+const ridgeNearMat=new THREE.MeshLambertMaterial({color:0x7d9888,side:THREE.DoubleSide,fog:false});
+const nearRidge=new THREE.Mesh(makeRidgeGeo(22.5,6.0,3.1,96),ridgeNearMat);
+nearRidge.frustumCulled=false;nearRidge.userData.ang=0;nearRidge.userData.ridge=true;
+bgGroup.add(nearRidge);bgMountains.push(nearRidge);
 /* 最远山剪影：再退一层淡色山影，拉开远中近纵深 */
 const bgFarMountains=[];
-const farGeo=new THREE.PlaneGeometry(18,8);
-farGeo.translate(0,4.0,0);
-const FAR_N=pc(12,9);
-for(let i=0;i<FAR_N;i++){
-  const a=i/FAR_N*TAU;
-  const mat=new THREE.MeshBasicMaterial({map:mountainTex,transparent:true,depthWrite:false,fog:false,opacity:0.38});
-  const m=new THREE.Mesh(farGeo,mat);
-  m.frustumCulled=false;
-  m.scale.x*=(Math.random()<0.5?-1:1);
-  m.position.set(Math.cos(a)*24.5,0,Math.sin(a)*24.5);
-  m.lookAt(0,4.0,0);
-  m.userData.ang=a;
-  bgGroup.add(m);bgFarMountains.push(m);
-}
+const ridgeFarMat=new THREE.MeshLambertMaterial({color:0x93a6a2,side:THREE.DoubleSide,fog:false,transparent:true,opacity:0.55});
+const farRidge=new THREE.Mesh(makeRidgeGeo(27.0,5.0,7.7,96),ridgeFarMat);
+farRidge.frustumCulled=false;farRidge.userData.ang=0;farRidge.userData.ridge=true;
+bgGroup.add(farRidge);bgFarMountains.push(farRidge);
 
 const bgFoliage=[];
 const folPlane=new THREE.PlaneGeometry(1,1);folPlane.translate(0,0.5,0);
@@ -868,24 +874,8 @@ for(let i=0;i<MIST_N;i++){
   ms.userData.spd=rndRange(0.05,0.10);
   bgGroup.add(ms);bgMist.push(ms);
 }
-/* 远景连绵林线：树海横带环绕一周，压在远山之前补足背景层次 */
-const treelineTex=new THREE.TextureLoader().load('assets/foliage/treeline.webp');
-treelineTex.encoding=THREE.sRGBEncoding;
+/* 远景林带由主树丛远景小树构成，不再叠加横幅贴片 */
 const bgTreelines=[];
-const tlGeo=new THREE.PlaneGeometry(16,4.5);
-tlGeo.translate(0,2.25,0);
-const TL_N=pc(12,9);
-for(let i=0;i<TL_N;i++){
-  const a=i/TL_N*TAU;
-  const mat=new THREE.MeshBasicMaterial({map:treelineTex,transparent:true,depthWrite:false,fog:false,opacity:0.82});
-  const m=new THREE.Mesh(tlGeo,mat);
-  m.frustumCulled=false;
-  m.scale.x*=(Math.random()<0.5?-1:1);
-  m.position.set(Math.cos(a)*17.5,0,Math.sin(a)*17.5);
-  m.lookAt(0,2.25,0);
-  m.userData.ang=a;
-  bgGroup.add(m);bgTreelines.push(m);
-}
 /* 远景村落小屋：程序化贴图，四季坡地人家；冬季屋顶覆雪 */
 function makeHouseCv(snow){
   const cv=document.createElement('canvas');cv.width=128;cv.height=160;
@@ -1026,15 +1016,13 @@ function updateFoliageTint(A,B,pointer,winterW){
     const mk=sectorMask(m.userData.ang,pointer);
     bgTmp.copy(bA).lerp(bB,mk);
     m.material.color.copy(bgTmp);
-    const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);
-    if(tf&&m.material.map!==tf)m.material.map=tf;
+    if(!m.userData.ridge){const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);if(tf&&m.material.map!==tf)m.material.map=tf;}
   }
   for(const m of bgFarMountains){
     const mk=sectorMask(m.userData.ang,pointer);
     bgTmp.copy(bA).lerp(bB,mk).lerp(folFog,0.58);
     m.material.color.copy(bgTmp);
-    const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);
-    if(tf&&m.material.map!==tf)m.material.map=tf;
+    if(!m.userData.ridge){const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);if(tf&&m.material.map!==tf)m.material.map=tf;}
   }
   for(const m of bgTreelines){
     const mk=sectorMask(m.userData.ang,pointer);
