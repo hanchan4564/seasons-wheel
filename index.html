@@ -600,8 +600,22 @@ loadVar('mtn','assets/foliage/mountain.webp','mtn');
 loadVar('tl','assets/foliage/treeline.webp','tl');
 
 /* 背景承接地面：与盘面同构的指针扇区渐变，已扫方位铺新季、未扫留旧季 */
-const groundGeo=new THREE.RingGeometry(10.6,30,96,1);
+const groundGeo=new THREE.RingGeometry(10.6,30,128,4);
 groundGeo.rotateX(-Math.PI/2);
+{
+  const gp=groundGeo.attributes.position;
+  for(let i=0;i<gp.count;i++){
+    const x=gp.getX(i),z=gp.getZ(i);
+    const r=Math.hypot(x,z),a=Math.atan2(z,x);
+    const wr=THREE.MathUtils.smoothstep(r,12,28);
+    const n1=_fbm(Math.cos(a)*2.2+r*0.18,Math.sin(a)*2.2-r*0.18);
+    let y=2.8*wr*(0.30+0.70*n1);
+    const ridgeW=THREE.MathUtils.smoothstep(r,25.5,30.0);
+    y+=2.4*ridgeW*_fbm(Math.cos(a)*2.5,Math.sin(a)*2.5+7.7);
+    gp.setY(i,y);
+  }
+  groundGeo.computeVertexNormals();
+}
 const groundPal=[
   new THREE.Color(0.16,0.38,0.14),
   new THREE.Color(0.14,0.33,0.13),
@@ -611,10 +625,10 @@ const groundPal=[
 const groundMat=new THREE.ShaderMaterial({
   uniforms:{uColA:{value:new THREE.Color(1,1,1)},uColB:{value:new THREE.Color(1,1,1)},uPointer:{value:0}},
   transparent:true,depthWrite:false,
-  vertexShader:`varying float vR;varying vec2 vXZ;void main(){vR=length(position.xz);vXZ=position.xz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  vertexShader:`varying float vR;varying vec2 vXZ;varying float vH;void main(){vR=length(position.xz);vXZ=position.xz;vH=position.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`
     uniform vec3 uColA;uniform vec3 uColB;uniform float uPointer;
-    varying float vR;varying vec2 vXZ;
+    varying float vR;varying vec2 vXZ;varying float vH;
     float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
     float sectorMask(vec2 xz,float p){
       float ang=atan(xz.y,xz.x);
@@ -629,6 +643,7 @@ const groundMat=new THREE.ShaderMaterial({
       float n1=hash(floor(vXZ*2.0));
       float n2=hash(floor(vXZ*7.0));
       col*=0.93+0.10*n1+0.06*n2;
+      col*=mix(1.0,0.70,clamp(vH/2.2,0.0,1.0));
       vec3 haze=vec3(0.60,0.65,0.66);
       col=mix(col,haze,smoothstep(12.0,26.0,vR)*0.50);
       float a=smoothstep(30.0,13.0,vR)*0.96;
@@ -737,38 +752,38 @@ function _fbm(x,z){let v=0,amp=0.5,fr=1;for(let o=0;o<4;o++){v+=amp*_vnoise(x*fr
 function makeRidge(R,H,seed,NS,K){
   const rnd=_mulberry((seed*1000)|0);
   const pos=[],col=[],idx=[];
-  const cFoot=new THREE.Color(0.20,0.34,0.18);
-  const cMid =new THREE.Color(0.34,0.45,0.30);
-  const cRock=new THREE.Color(0.50,0.52,0.50);
-  const peaks=[];const PN=4;
-  for(let p=0;p<PN;p++)peaks.push({a:rnd()*TAU,w:0.10+rnd()*0.12,h:0.5+rnd()*0.45});
+  const cFoot=new THREE.Color(0.15,0.28,0.13);
+  const cMid =new THREE.Color(0.27,0.39,0.22);
+  const cRock=new THREE.Color(0.48,0.49,0.47);
+  const peaks=[];const PN=7;
+  for(let p=0;p<PN;p++)peaks.push({a:rnd()*TAU,w:0.05+rnd()*0.08,h:0.55+rnd()*0.6});
   const ridge=[];
   for(let i=0;i<=NS;i++){
     const a=i/NS*TAU;
     let pk=0;
     for(const p of peaks){const da=Math.atan2(Math.sin(a-p.a),Math.cos(a-p.a));pk+=p.h*Math.exp(-(da*da)/(2*p.w*p.w));}
-    const n1=_fbm(Math.cos(a)*1.6+seed,Math.sin(a)*1.6-seed);
-    const n2=_fbm(Math.cos(a)*4.5-seed,Math.sin(a)*4.5+seed);
-    ridge.push(H*(0.46+0.24*n1+0.16*n2+0.30*Math.min(1,pk)));
+    const n1=_fbm(Math.cos(a)*1.5+seed,Math.sin(a)*1.5-seed);
+    const n2=_fbm(Math.cos(a)*5.5-seed,Math.sin(a)*5.5+seed);
+    ridge.push(H*(0.36+0.18*n1+0.28*n2+0.34*Math.min(1,pk)));
   }
   for(let k=0;k<=K;k++){
     const t=k/K;
-    const prof=Math.pow(t,0.72);
+    const prof=Math.pow(t,0.70);
     const hump=H*0.16*Math.sin(Math.min(t/0.22,1)*Math.PI/2);
     const rx=R-4.2*t;
     for(let i=0;i<=NS;i++){
       const a=i/NS*TAU;
       const gn1=_fbm(a*5.0+seed,seed*1.3);
-      const gn2=_fbm(a*11.0-seed,seed*2.1);
-      const g=((gn1-0.5)*0.7+(gn2-0.5)*0.3)*2*t*H*0.22;
+      const gn2=_fbm(a*13.0-seed,seed*2.1);
+      const g=((gn1-0.5)*0.6+(gn2-0.5)*0.4)*2*t*H*0.30;
       let y=ridge[i]*prof+hump-g;
       y=Math.max(0,y);
       const wob=(gn1-0.5)*0.45*t;
       pos.push(Math.cos(a)*(rx+wob),y,Math.sin(a)*(rx+wob));
       const f=Math.min(1,y/(H*1.15));
-      const c=f<0.55?cFoot.clone().lerp(cMid,f/0.55):cMid.clone().lerp(cRock,(f-0.55)/0.45);
-      const bn=0.84+0.30*_fbm(Math.cos(a)*3+seed,t*2+seed);
-      const shade=g>0?0.84:1.05;
+      const c=f<0.5?cFoot.clone().lerp(cMid,f*2):cMid.clone().lerp(cRock,(f-0.5)*2);
+      const bn=0.78+0.34*_fbm(Math.cos(a)*3+seed,t*2+seed);
+      const shade=g>0?0.80:1.10;
       c.multiplyScalar(bn*shade);
       col.push(c.r,c.g,c.b);
     }
@@ -790,10 +805,10 @@ const bgMountains=[];
 const bgFarMountains=[];
 const ridgeNearMat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false});
 const ridgeFarMat =new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false,transparent:true,opacity:0.55});
-const mtnNear=new THREE.Mesh(makeRidge(21.5,6.4,3.1,150,7),ridgeNearMat);
+const mtnNear=new THREE.Mesh(makeRidge(21.5,2.8,3.1,170,8),ridgeNearMat);
 mtnNear.frustumCulled=false;mtnNear.userData.ang=0;mtnNear.userData.ridge=true;
 bgGroup.add(mtnNear);bgMountains.push(mtnNear);
-const mtnFar=new THREE.Mesh(makeRidge(26.0,4.6,7.7,150,7),ridgeFarMat);
+const mtnFar=new THREE.Mesh(makeRidge(26.5,4.6,7.7,170,8),ridgeFarMat);
 mtnFar.frustumCulled=false;mtnFar.userData.ang=0;mtnFar.userData.ridge=true;
 bgGroup.add(mtnFar);bgFarMountains.push(mtnFar);
 
