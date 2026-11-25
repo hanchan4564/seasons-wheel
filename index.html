@@ -404,7 +404,7 @@ const camera=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,0.1,1200);
 
 /* 光照：暖主光塑形 + 冷天光补暗部 + 轮廓光剥离背景 */
 const hemi=new THREE.HemisphereLight(0x39496b,0x0a0c08,0.6);scene.add(hemi);
-const key=new THREE.DirectionalLight(0xffe6c0,0.95);key.position.set(12,18,6);
+const key=new THREE.DirectionalLight(0xffe6c0,0.95);key.position.set(13,12,-3);
 key.castShadow=shadowsOn;
 key.shadow.mapSize.set(2048,2048);
 key.shadow.camera.near=1;key.shadow.camera.far=60;
@@ -631,7 +631,7 @@ const groundMat=new THREE.ShaderMaterial({
       float n2=hash(floor(vXZ*7.0));
       float n3=hash(floor(vXZ*15.0));
       float n4=hash(floor(vXZ*31.0));
-      col*=0.90+0.10*n1+0.06*n2+0.04*n3+0.03*n4;
+      col*=0.86+0.14*n1+0.07*n2+0.04*n3+0.03*n4;
       /* 远景微弱湿润反光：冷亮随距离渐显，呼应湿地地表 */
       float wet=smoothstep(10.0,24.0,vR);
       col+=vec3(0.05,0.06,0.06)*wet*(0.4+0.6*n4);
@@ -748,7 +748,7 @@ function makeTerrainMountain(seed,aCenter,layer){
   const far=layer==='far';
   const NA=far?110:80, NR=far?26:12;
   const rNear=far?21:16.5, rFar=far?28:19.5;
-  const Hmax=far?8.0:3.0, halfAng=far?1.5:1.7;
+  const Hmax=far?8.0:3.6, halfAng=far?1.5:1.7;
   const peaks=[];
   if(far){
     peaks.push({a:aCenter-0.32,r:24.5,wa:0.26,wr:2.0,hh:0.85});
@@ -758,12 +758,14 @@ function makeTerrainMountain(seed,aCenter,layer){
     const sOff=[-0.55,0.50,1.42];
     for(const o of sOff)peaks.push({a:aCenter+o,r:rndRange(26.0,27.0),wa:rndRange(0.06,0.08),wr:rndRange(0.55,0.7),hh:rndRange(0.52,0.58)});
   }else{
-    peaks.push({a:aCenter-0.65,r:18.3,wa:0.72,wr:2.8,hh:0.66});
-    peaks.push({a:aCenter+0.55,r:18.4,wa:0.78,wr:3.0,hh:0.60});
+    peaks.push({a:aCenter-0.80,r:18.2,wa:0.30,wr:1.6,hh:0.78});
+    peaks.push({a:aCenter-0.28,r:18.6,wa:0.34,wr:1.9,hh:0.70});
+    peaks.push({a:aCenter+0.30,r:18.5,wa:0.34,wr:1.9,hh:0.72});
+    peaks.push({a:aCenter+0.85,r:18.3,wa:0.30,wr:1.6,hh:0.76});
   }
-  const cFoot=new THREE.Color(0.12,0.23,0.10);
-  const cMid =new THREE.Color(0.22,0.33,0.17);
-  const cRock=new THREE.Color(0.42,0.43,0.42);
+  const cFoot=new THREE.Color(0.10,0.22,0.09);
+  const cMid =new THREE.Color(0.18,0.31,0.15);
+  const cRock=new THREE.Color(0.38,0.36,0.32);
   const cSnow=new THREE.Color(0.80,0.81,0.79);
   const H=[];
   for(let j=0;j<=NR;j++){
@@ -771,7 +773,7 @@ function makeTerrainMountain(seed,aCenter,layer){
     H[j]=[];
     for(let i=0;i<=NA;i++){
       const a=i/NA*TAU;
-      let h=Hmax*0.03*_fbm(Math.cos(a)*1.6+seed,Math.sin(a)*1.6-seed);
+      let h=Hmax*(far?0.03:0.08)*_fbm(Math.cos(a)*1.6+seed,Math.sin(a)*1.6-seed);
       for(const p of peaks){
         const da=Math.atan2(Math.sin(a-p.a),Math.cos(a-p.a));
         const dr=r-p.r;
@@ -779,7 +781,7 @@ function makeTerrainMountain(seed,aCenter,layer){
       }
       /* 连绵基底缓丘：峰脚连续过渡，避免孤立尖包 */
       const baseR=far?25.0:18.5;
-      h+=Hmax*(far?0.10:0.18)*Math.exp(-(((r-baseR)/3.4)**2));
+      h+=Hmax*(far?0.10:0.10)*Math.exp(-(((r-baseR)/3.4)**2));
       const dAng=Math.abs(Math.atan2(Math.sin(a-aCenter),Math.cos(a-aCenter)));
       const wAng=1-_ss(halfAng-0.30,halfAng,dAng);
       const wR=_ss(rNear,rNear+2.5,r)*(1-_ss(rFar-2.5,rFar,r));
@@ -797,14 +799,17 @@ function makeTerrainMountain(seed,aCenter,layer){
       const ja=i<NA?H[j][i+1]-h:h-(i>0?H[j][i-1]:0);
       const slope=Math.abs(jr)/((rFar-rNear)/NR)+Math.abs(ja)/(TAU/NA*r);
       const f=Math.min(1,h/Hmax);
-      let rock=Math.max(f>0.7?(f-0.7)/0.3:0, _ss(0.72,1.35,slope));
+      let rock=Math.max(f>0.62?(f-0.62)/0.38:0, _ss(0.42,1.05,slope));
       rock=Math.min(1,rock);
       if(f<0.5)c.copy(cFoot).lerp(cMid,f*2);
       else c.copy(cMid).lerp(cRock,(f-0.5)*2);
-      if(rock>0)c.lerp(cRock,rock*(far?0.8:0.5));
+      if(rock>0)c.lerp(cRock,rock*(far?0.8:0.55));
       if(f>0.72)c.lerp(cRock,0.25*(far?1:0.4));
       if(far&&f>0.62)c.lerp(cSnow,Math.min(1,(f-0.62)/0.38)*0.9);
-      const bn=0.80+0.30*_fbm(Math.cos(a)*3+seed,t*2+seed);
+      /* 岩面竖向裂隙：沿坡向的明暗沟槽，岩面处沟槽压暗 */
+      const crease=_fbm(Math.cos(a)*4.0+seed,t*3.0+seed);
+      c.multiplyScalar(1-rock*0.25*(1-crease));
+      const bn=0.76+0.34*_fbm(Math.cos(a)*3+seed,t*2+seed);
       c.multiplyScalar(bn);
       col.push(c.r,c.g,c.b);
     }
@@ -875,7 +880,8 @@ function jitterGeo(geo,amt,seed){
 const innerGeoA=new THREE.SphereGeometry(1,14,11);jitterGeo(innerGeoA,0.18,11);
 const innerGeoB=new THREE.SphereGeometry(1,14,11);jitterGeo(innerGeoB,0.18,29);
 const innerMat=new THREE.MeshLambertMaterial({color:0x1d3f15,fog:false});
-innerMat.toneMapped=false;
+const innerMat2=new THREE.MeshLambertMaterial({color:0x2c521e,fog:false});
+innerMat.toneMapped=false;innerMat2.toneMapped=false;
 const _m4=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_s=new THREE.Vector3(),_p=new THREE.Vector3(),_c=new THREE.Color();
 function makeTree3D(h,seed,kind){
   const grp=new THREE.Group();
@@ -902,40 +908,50 @@ function makeTree3D(h,seed,kind){
   }
   const cy=trunkH+h*0.16;
   const innerGeo=rng()<0.5?innerGeoA:innerGeoB;
-  const centers=[{x:0,y:cy,z:0,r:0.85}];
-  const cl=3+Math.floor(rng()*3);
+  const centers=[{x:0,y:cy,z:0,r:0.85,core:true}];
+  const cl=4+Math.floor(rng()*3);
   for(let k=0;k<cl;k++){
-    const ca=rng()*TAU,cr=rng()*rx*0.45;
-    const offY=(rng()-0.35)*ry*0.55;
-    const cs=0.42+rng()*0.30;
-    centers.push({x:Math.cos(ca)*cr,y:cy+offY,z:Math.sin(ca)*cr,r:cs});
+    const ca=rng()*TAU,cr=rng()*rx*0.50;
+    const offY=(rng()-0.30)*ry*0.60;
+    const cs=0.40+rng()*0.32;
+    centers.push({x:Math.cos(ca)*cr,y:cy+offY,z:Math.sin(ca)*cr,r:cs,core:false});
+  }
+  /* 下垂侧团：冠缘留破洞，打破规整圆顶轮廓 */
+  const droop=1+Math.floor(rng()*2);
+  for(let k=0;k<droop;k++){
+    const da=rng()*TAU;
+    centers.push({x:Math.cos(da)*rx*0.55,y:cy-ry*0.35,z:Math.sin(da)*rx*0.55,r:0.36+rng()*0.16,core:false});
   }
   for(const c of centers){
-    const lump=new THREE.Mesh(innerGeo,innerMat);
+    const lump=new THREE.Mesh(innerGeo,c.core?innerMat:innerMat2);
     lump.position.set(c.x,c.y,c.z);
-    lump.scale.set(rx*c.r*0.60,ry*c.r*0.60,rx*c.r*0.60);grp.add(lump);
+    const sy=(0.50+rng()*0.18)*ry*c.r;
+    lump.scale.set(rx*c.r*0.66,sy,rx*c.r*0.66);
+    grp.add(lump);
   }
   const N=bush?Math.round(h*95):Math.round(h*160);
   const crown=new THREE.InstancedMesh(leafPlaneGeo,crownMat,N);
   for(let i=0;i<N;i++){
     const c=centers[(Math.random()*centers.length)|0];
-    const gx=(Math.random()+Math.random()-1)*rx*0.72;
-    const gy=(Math.random()+Math.random()-1)*ry*0.50;
-    const gz=(Math.random()+Math.random()-1)*rx*0.72;
+    const gx=(Math.random()+Math.random()-1)*rx*0.85;
+    const gy=(Math.random()+Math.random()-1)*ry*0.62;
+    const gz=(Math.random()+Math.random()-1)*rx*0.85;
     _p.set(c.x+gx,c.y+gy,c.z+gz);
     _e.set(rndRange(-0.8,0.8),Math.random()*TAU,rndRange(-0.8,0.8));_q.setFromEuler(_e);
-    const ls=h*rndRange(0.19,0.28);_s.set(ls,ls,ls);
+    const ls=h*rndRange(0.20,0.30);_s.set(ls,ls,ls);
     _m4.compose(_p,_q,_s);crown.setMatrixAt(i,_m4);
-    const sh=rndRange(0.68,0.95),wv=rng();
-    if(wv<0.34)_c.setRGB(sh*1.06,sh*0.99,sh*0.80);
-    else if(wv<0.70)_c.setRGB(sh,sh,sh);
+    const sh=rndRange(0.66,0.95),wv=rng();
+    /* 冠心叶片偏深绿，外围受光叶片偏暖黄绿，形成明暗体积 */
+    if(c.core){_c.setRGB(sh*0.86,sh*0.98,sh*0.72);}
+    else if(wv<0.40)_c.setRGB(sh*1.05,sh*0.99,sh*0.80);
+    else if(wv<0.75)_c.setRGB(sh,sh,sh);
     else _c.setRGB(sh*0.82,sh*0.95,sh*1.05);
     crown.setColorAt(i,_c);
   }
   crown.instanceMatrix.needsUpdate=true;
   grp.add(crown);
   grp.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
-  grp.userData.leafMats=[crownMat,innerMat];
+  grp.userData.leafMats=[crownMat,innerMat,innerMat2];
   return grp;
 }
 /* 主树丛：近景大树—中景灌树—远景草灌，三层错落环绕；整体外推避免树冠遮挡盘面 */
@@ -1003,6 +1019,20 @@ for(let i=0;i<MIST_N;i++){
   ms.userData.baseX=ms.position.x;ms.userData.baseZ=ms.position.z;
   ms.userData.spd=rndRange(0.05,0.10);
   bgGroup.add(ms);bgMist.push(ms);
+}
+/* 远层薄雾：贴远山横铺，近薄远厚，强化空气透视纵深 */
+for(let i=0;i<6;i++){
+  const ang=Math.random()*TAU;
+  const rad=rndRange(22.0,26.0);
+  const mm2=new THREE.MeshBasicMaterial({map:mistTex,transparent:true,depthWrite:false,fog:false,opacity:rndRange(0.12,0.18)});
+  const ms2=new THREE.Mesh(folPlane,mm2);
+  ms2.scale.set(rndRange(15,21),rndRange(4.0,6.0),1);
+  ms2.position.set(Math.cos(ang)*rad,rndRange(2.2,4.2),Math.sin(ang)*rad);
+  ms2.userData.seed=Math.random()*TAU;
+  ms2.userData.baseOp=mm2.opacity;
+  ms2.userData.baseX=ms2.position.x;ms2.userData.baseZ=ms2.position.z;
+  ms2.userData.spd=rndRange(0.03,0.06);
+  bgGroup.add(ms2);bgMist.push(ms2);
 }
 /* 穿林光束：主光方向斜插的半透明光锥（丁达尔体积光），纯几何+着色，不贴背景图；白昼随春夏提亮 */
 const beamDir=new THREE.Vector3(-12,-18,-6).normalize();
@@ -1150,7 +1180,7 @@ const folTint=[
   new THREE.Color(1.00,0.48,0.16),
   new THREE.Color(0.82,0.80,0.88)
 ];
-const folFog=new THREE.Color(0.66,0.70,0.72);
+const folFog=new THREE.Color(0.68,0.70,0.68);
 /* 3D 树叶季节浓绿色板（春嫩绿/夏浓绿/秋金橙/冬霜白），不贴图、直接作反照率 */
 const leafPal=[
   new THREE.Color(0.13,0.35,0.10),
@@ -2487,7 +2517,7 @@ bgGrass.frustumCulled=false;bgGroup.add(bgGrass);
 
 /* 盘外环带散布石块：低模灰石半埋草中，破除纯草地单调 */
 const rockGeo=new THREE.IcosahedronGeometry(1,1);
-const rockBaseMat=new THREE.MeshLambertMaterial({color:0x8a8d80,fog:false});
+const rockBaseMat=new THREE.MeshLambertMaterial({color:0x7d7a70,fog:false});
 const rockMeshes=[];
 const ROCK_N=pc(22,12);
 for(let i=0;i<ROCK_N;i++){
@@ -4150,9 +4180,9 @@ function animate(){
     const beamEnv=springW*0.9+w[2]*1.0+w[3]*0.45+w[4]*0.30;
     for(const bm of beamMats){bm.uniforms.uTime.value=simTime;bm.uniforms.uOpacity.value=0.30*beamEnv;}
     dustMat.uniforms.uOpacity.value=0.55*(springW*0.8+w[2]*0.7);
-    scene.fog.color.setHex(0x0a1626);
-    key.color.setRGB(1.0,0.97,0.90);key.intensity=1.25;
-    hemi.color.setRGB(0.86,0.91,1.0);hemi.intensity=0.9;
+    scene.fog.color.setHex(0x5e7068);
+    key.color.setRGB(1.0,0.96,0.86);key.intensity=1.32;
+    hemi.color.setRGB(0.80,0.88,0.84);hemi.intensity=0.82;
   }else{
     for(const bm of beamMats)bm.uniforms.uOpacity.value=0;
     dustMat.uniforms.uOpacity.value=0;
