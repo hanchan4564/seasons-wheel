@@ -365,16 +365,16 @@ const TIER=window.__tier;
 let _sq='auto';try{_sq=localStorage.getItem('sq_quality')||'auto';}catch(e){}
 const QLEVEL=_sq==='auto'?TIER:(_sq==='low'?'low':_sq==='mid'?'mid':'high');
 const pc=(desk,mob)=>!IS_MOBILE?desk:QLEVEL==='high'?desk:QLEVEL==='low'?Math.round(mob*0.7):mob;
-const BLADE_COUNT=pc(165000,50000);
+const BLADE_COUNT=pc(190000,50000);
 const FLOWER_COUNT=pc(2000,1000);
 
 /* 季节调色板：0 裸盘 1 春 2 夏 3 秋 4 冬 */
 const SEASONS=[
   {base:[0.02,0.03,0.02],tip:[0.03,0.04,0.03],h:0.0, droop:0.0, flower:0},
-  {base:[0.05,0.18,0.06],tip:[0.23,0.50,0.21],h:1.15,droop:0.10,flower:1},
-  {base:[0.04,0.15,0.05],tip:[0.17,0.42,0.14],h:1.45,droop:0.05,flower:0.02},
-  {base:[0.28,0.15,0.05],tip:[0.86,0.45,0.15],h:1.12,droop:0.50,flower:0},
-  {base:[0.30,0.34,0.40],tip:[0.78,0.83,0.92],h:0.62,droop:0.20,flower:0}
+  {base:[0.06,0.20,0.07],tip:[0.22,0.55,0.18],h:1.15,droop:0.10,flower:1},
+  {base:[0.05,0.18,0.06],tip:[0.20,0.50,0.15],h:1.45,droop:0.05,flower:0.02},
+  {base:[0.30,0.16,0.05],tip:[0.90,0.48,0.16],h:1.12,droop:0.50,flower:0},
+  {base:[0.32,0.36,0.42],tip:[0.80,0.85,0.93],h:0.62,droop:0.20,flower:0}
 ];
 const SEASON_META=[
   {ch:'春',en:'SPRING',poem:'草木萌发 · 星野初醒'},
@@ -604,10 +604,10 @@ loadVar('tl','assets/foliage/treeline.webp','tl');
 const groundGeo=new THREE.RingGeometry(10.6,30,96,1);
 groundGeo.rotateX(-Math.PI/2);
 const groundPal=[
-  new THREE.Color(0.16,0.38,0.14),
-  new THREE.Color(0.14,0.33,0.13),
-  new THREE.Color(0.45,0.30,0.14),
-  new THREE.Color(0.52,0.57,0.64)
+  new THREE.Color(0.14,0.40,0.13),
+  new THREE.Color(0.12,0.36,0.12),
+  new THREE.Color(0.50,0.32,0.13),
+  new THREE.Color(0.56,0.60,0.67)
 ];
 const groundMat=new THREE.ShaderMaterial({
   uniforms:{uColA:{value:new THREE.Color(1,1,1)},uColB:{value:new THREE.Color(1,1,1)},uPointer:{value:0}},
@@ -635,8 +635,8 @@ const groundMat=new THREE.ShaderMaterial({
       /* 远景微弱湿润反光：冷亮随距离渐显，呼应湿地地表 */
       float wet=smoothstep(10.0,24.0,vR);
       col+=vec3(0.05,0.06,0.06)*wet*(0.4+0.6*n4);
-      vec3 haze=vec3(0.60,0.65,0.66);
-      col=mix(col,haze,smoothstep(12.0,26.0,vR)*0.50);
+      vec3 haze=vec3(0.66,0.72,0.74);
+      col=mix(col,haze,smoothstep(12.0,26.0,vR)*0.26);
       float a=smoothstep(30.0,13.0,vR)*0.96;
       gl_FragColor=vec4(col,a);
     }`
@@ -746,36 +746,40 @@ function _ss(e0,e1,x){const t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*
 function makeTerrainMountain(seed,aCenter,layer){
   const rnd=_mulberry((seed*1000)|0);
   const far=layer==='far';
-  const NA=far?110:84, NR=far?38:20;
+  const NA=far?128:96, NR=far?36:24;
   const rNear=far?21:16.5, rFar=far?28:19.5;
-  const Hmax=far?10.2:5.0, halfAng=far?1.55:1.75;
+  const Hmax=far?10.2:6.0, halfAng=far?1.55:1.75;
+  const rBase=far?25.0:18.3;
+  /* 侧峰：主脊两侧错开的窄峰，打破对称孤立包 */
   const peaks=[];
   if(far){
-    peaks.push({a:aCenter-0.32,r:24.5,wa:0.26,wr:2.0,hh:0.85});
-    peaks.push({a:aCenter+0.28,r:25.0,wa:0.24,wr:1.8,hh:0.78});
     const aOff=[-1.05,-0.62,0.02,0.66,1.12];
-    for(const o of aOff)peaks.push({a:aCenter+o,r:rndRange(23.0,26.0),wa:rndRange(0.10,0.14),wr:rndRange(1.0,1.25),hh:rndRange(0.66,0.76)});
+    for(const o of aOff)peaks.push({a:aCenter+o,r:rndRange(23.0,26.0),wa:rndRange(0.10,0.14),wr:rndRange(1.0,1.25),hh:rndRange(0.60,0.72)});
     const sOff=[-0.55,0.50,1.42];
-    for(const o of sOff)peaks.push({a:aCenter+o,r:rndRange(26.0,27.0),wa:rndRange(0.06,0.08),wr:rndRange(0.55,0.7),hh:rndRange(0.52,0.58)});
+    for(const o of sOff)peaks.push({a:aCenter+o,r:rndRange(26.0,27.0),wa:rndRange(0.06,0.08),wr:rndRange(0.55,0.7),hh:rndRange(0.48,0.56)});
   }else{
-    peaks.push({a:aCenter-0.80,r:18.2,wa:0.22,wr:1.20,hh:0.95});
-    peaks.push({a:aCenter-0.28,r:18.8,wa:0.20,wr:1.10,hh:0.80});
-    peaks.push({a:aCenter+0.05,r:19.2,wa:0.16,wr:0.80,hh:0.55});
-    peaks.push({a:aCenter+0.30,r:18.4,wa:0.22,wr:1.20,hh:0.86});
-    peaks.push({a:aCenter+0.85,r:18.2,wa:0.20,wr:1.10,hh:0.92});
+    peaks.push({a:aCenter-0.80,r:18.2,wa:0.22,wr:1.20,hh:0.85});
+    peaks.push({a:aCenter-0.28,r:18.8,wa:0.20,wr:1.10,hh:0.72});
+    peaks.push({a:aCenter+0.30,r:18.4,wa:0.22,wr:1.20,hh:0.78});
+    peaks.push({a:aCenter+0.85,r:18.2,wa:0.20,wr:1.10,hh:0.82});
   }
-  const cFoot=new THREE.Color(0.08,0.20,0.08);
-  const cMid =new THREE.Color(0.16,0.29,0.14);
-  const cRock=new THREE.Color(0.40,0.39,0.36);
-  const cSnow=new THREE.Color(0.82,0.83,0.81);
-  const cHaze=new THREE.Color(0.55,0.62,0.62);
+  /* 顶点色只存灰阶明暗，季节色相由材质 color 按四季色板染 */
+  const cFoot=new THREE.Color(0.74,0.74,0.74);
+  const cMid =new THREE.Color(0.63,0.63,0.63);
+  const cRock=new THREE.Color(0.50,0.50,0.50);
+  const cSnow=new THREE.Color(0.96,0.96,0.96);
+  const cHaze=new THREE.Color(0.70,0.70,0.70);
   const H=[];
   for(let j=0;j<=NR;j++){
     const t=j/NR, r=rNear+(rFar-rNear)*t;
     H[j]=[];
     for(let i=0;i<=NA;i++){
       const a=i/NA*TAU;
-      let h=Hmax*(far?0.03:0.08)*_fbm(Math.cos(a)*1.6+seed,Math.sin(a)*1.6-seed);
+      /* 角向起伏的主脊线轮廓：连绵不断、高低错落，峰谷拉开对比 */
+      const ridgeRaw=_fbm(Math.cos(a)*2.2+seed,Math.sin(a)*2.2-seed);
+      const ridgeLine=Math.pow(ridgeRaw,1.25);
+      const env=Math.exp(-(((r-rBase)/(far?3.6:2.6))**2));
+      let h=Hmax*(0.10+0.90*ridgeLine)*env;
       for(const p of peaks){
         /* 山脊随径向轻微偏斜，避免对称圆滑的孤立包 */
         const ridgeShift=0.18*((r-p.r)/p.wr);
@@ -783,11 +787,14 @@ function makeTerrainMountain(seed,aCenter,layer){
         const dr=r-p.r;
         h+=Hmax*p.hh*Math.exp(-((da/p.wa)**2)-((dr/p.wr)**2));
       }
-      /* 中频凹凸：峰面起皱，消掉光滑塑料感 */
-      h+=Hmax*(far?0.06:0.10)*_fbm(Math.cos(a)*3.1+seed,r*0.42-seed);
-      /* 连绵基底缓丘：峰脚连续过渡，避免孤立尖包 */
-      const baseR=far?25.0:18.5;
-      h+=Hmax*(far?0.10:0.10)*Math.exp(-(((r-baseR)/3.4)**2));
+      /* 沟壑下切：沿径向拉长的宽沟槽，高处切成 V 谷 */
+      const gully=_fbm(Math.cos(a)*3.2+seed,r*0.12-seed);
+      const gCut=_ss(0.42,0.72,gully)*_ss(0.15,0.5,h/Hmax);
+      h-=Hmax*0.36*gCut;
+      /* 坡面中频凹凸：消掉光滑塑料感 */
+      h+=Hmax*(far?0.05:0.10)*(_fbm(Math.cos(a)*3.4+seed,r*0.5-seed)-0.5);
+      /* 坡脚连续缓丘：峰脚过渡自然，避免孤立尖包 */
+      h+=Hmax*(far?0.08:0.06)*Math.exp(-(((r-(rBase-3.2))/2.6)**2));
       const dAng=Math.abs(Math.atan2(Math.sin(a-aCenter),Math.cos(a-aCenter)));
       const wAng=1-_ss(halfAng-0.30,halfAng,dAng);
       const wR=_ss(rNear,rNear+2.5,r)*(1-_ss(rFar-2.5,rFar,r));
@@ -1091,42 +1098,59 @@ for(let i=0;i<BEAM_N;i++){
 let dustMat=null;
 /* 远景林带由主树丛远景小树构成，不再叠加横幅贴片 */
 const bgTreelines=[];
-/* 远景村落小屋：程序化贴图，四季坡地人家；冬季屋顶覆雪 */
-function makeHouseCv(snow){
-  const cv=document.createElement('canvas');cv.width=128;cv.height=160;
-  const x=cv.getContext('2d');
-  x.fillStyle='rgb(96,80,72)';x.fillRect(80,24,10,24);
-  x.fillStyle='rgb(150,104,66)';x.fillRect(34,80,60,60);
-  x.strokeStyle='rgba(90,58,36,0.5)';x.lineWidth=1;
-  for(let wy=90;wy<140;wy+=10){x.beginPath();x.moveTo(34,wy);x.lineTo(94,wy);x.stroke();}
-  x.beginPath();x.moveTo(64,34);x.lineTo(26,82);x.lineTo(102,82);x.closePath();
-  x.fillStyle=snow?'rgb(236,241,246)':'rgb(74,52,40)';x.fill();
-  if(snow){x.strokeStyle='rgb(248,250,252)';x.lineWidth=6;x.beginPath();x.moveTo(28,82);x.lineTo(100,82);x.stroke();}
-  x.fillStyle='rgb(70,48,34)';x.fillRect(56,112,16,28);
-  x.fillStyle='rgb(220,190,120)';x.fillRect(68,124,2.5,2.5);
-  x.fillStyle='rgb(240,200,120)';x.fillRect(40,94,12,12);x.fillRect(76,94,12,12);
-  x.strokeStyle='rgba(80,56,38,0.8)';x.lineWidth=1;
-  x.beginPath();x.moveTo(46,94);x.lineTo(46,106);x.moveTo(40,100);x.lineTo(52,100);x.stroke();
-  x.beginPath();x.moveTo(82,94);x.lineTo(82,106);x.moveTo(76,100);x.lineTo(88,100);x.stroke();
-  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;return t;
-}
-const houseWood=makeHouseCv(false),houseSnow=makeHouseCv(true);
+/* 远景村落小屋：低模 3D 木石小屋（墙体+双坡顶+烟囱+门窗），冬季屋顶覆雪 */
 const bgHouses=[];
-const houseGeo=new THREE.PlaneGeometry(1,1);houseGeo.translate(0,0.5,0);
-const HOUSE_N=pc(3,2);
+const houseWallMat =new THREE.MeshLambertMaterial({color:0x8a6a48,fog:false});
+const houseWallMat2=new THREE.MeshLambertMaterial({color:0xd6cfbd,fog:false});
+const houseRoofMat =new THREE.MeshLambertMaterial({color:0x5a4030,fog:false});
+const houseChimMat =new THREE.MeshLambertMaterial({color:0x6b6a63,fog:false});
+const houseDoorMat =new THREE.MeshLambertMaterial({color:0x4a3423,fog:false});
+const houseWinMat  =new THREE.MeshLambertMaterial({color:0xe6c878,fog:false});
+const houseSnowMat =new THREE.MeshLambertMaterial({color:0xeef2f5,fog:false});
+function buildHouse(white){
+  const g=new THREE.Group();
+  const w=1.7,h=1.35,d=1.5,rh=0.6;
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),white?houseWallMat2:houseWallMat);
+  wall.position.y=h/2;wall.castShadow=true;wall.receiveShadow=true;g.add(wall);
+  /* 双坡屋顶：两片斜板搭成人字，屋脊沿前后方向 */
+  const roofGeo=new THREE.BoxGeometry(w*0.62,0.09,d+0.28);
+  const ang=Math.atan2(rh,w/2);
+  const lf=new THREE.Mesh(roofGeo,houseRoofMat);
+  lf.position.set(-w/4,h+rh/2-0.05,0);lf.rotation.z=ang;lf.castShadow=true;g.add(lf);
+  const rf=new THREE.Mesh(roofGeo,houseRoofMat);
+  rf.position.set(w/4,h+rh/2-0.05,0);rf.rotation.z=-ang;rf.castShadow=true;g.add(rf);
+  /* 冬季雪顶：两片白色薄壳覆在屋面，默认隐藏 */
+  const snowGeo=new THREE.BoxGeometry(w*0.62,0.05,d+0.30);
+  const ls=new THREE.Mesh(snowGeo,houseSnowMat);
+  ls.position.set(-w/4,h+rh/2+0.02,0);ls.rotation.z=ang;g.add(ls);
+  const rs=new THREE.Mesh(snowGeo,houseSnowMat);
+  rs.position.set(w/4,h+rh/2+0.02,0);rs.rotation.z=-ang;g.add(rs);
+  ls.visible=rs.visible=false;
+  /* 烟囱 */
+  const chim=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.55,0.24),houseChimMat);
+  chim.position.set(w*0.22,h+rh*0.7,0.2);chim.castShadow=true;g.add(chim);
+  /* 门与窗（正面 +z） */
+  const door=new THREE.Mesh(new THREE.BoxGeometry(0.38,0.62,0.07),houseDoorMat);
+  door.position.set(0,0.31,d/2+0.02);g.add(door);
+  const winL=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.30,0.07),houseWinMat);
+  winL.position.set(-w*0.28,0.85,d/2+0.02);g.add(winL);
+  const winR=winL.clone();winR.position.x=w*0.28;g.add(winR);
+  g.userData.snow=[ls,rs];
+  return g;
+}
+const HOUSE_N=pc(4,2);
 for(let i=0;i<HOUSE_N;i++){
   const ang=(i/HOUSE_N)*TAU+rndRange(-0.3,0.3);
   const rad=rndRange(13.8,15.0);
-  const mat=new THREE.MeshBasicMaterial({map:houseWood,transparent:true,depthWrite:false,fog:false});
-  const h=new THREE.Mesh(houseGeo,mat);
-  const sc=rndRange(1.8,2.4);
-  h.scale.set(sc*(Math.random()<0.5?-1:1),sc,1);
+  const h=buildHouse(Math.random()<0.4);
+  const sc=rndRange(1.6,2.1);
+  h.scale.setScalar(sc);
   h.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
   h.lookAt(0,0,0);
-  h.userData.ang=ang;h.userData.mat=mat;h.userData.house=true;
+  h.userData.ang=ang;
   const sh=new THREE.Mesh(shadowGeo,shadowMat);
   sh.position.set(Math.cos(ang)*rad,0.015,Math.sin(ang)*rad);
-  sh.scale.set(sc*0.7,1,sc*0.55);
+  sh.scale.set(sc*1.1,1,sc*0.8);
   bgGroup.add(sh);bgGroup.add(h);bgHouses.push(h);
 }
 /* ===== 分地区地标：把参考场景主体用基础几何程序化落到环形背景带，按季节权重显隐 ===== */
@@ -1356,6 +1380,13 @@ const bgTint=[
   new THREE.Color(1.00,0.56,0.24),
   new THREE.Color(0.76,0.80,0.86)
 ];
+/* 山体四季反照率：春嫩绿/夏浓绿/秋褐黄/冬霜灰（顶点色存灰阶，由此染色相） */
+const mtnPal=[
+  new THREE.Color(0.34,0.52,0.28),
+  new THREE.Color(0.20,0.42,0.18),
+  new THREE.Color(0.48,0.36,0.19),
+  new THREE.Color(0.52,0.55,0.60)
+];
 function seasonTex(texSet,s){if(!texSet)return null;
   if(s===3)return texSet.aut;
   if(s===4)return texSet.win;
@@ -1383,15 +1414,17 @@ function updateFoliageTint(A,B,pointer,winterW){
   const vM=folVar.mtn,vT=folVar.tl;
   for(const m of bgMountains){
     const mk=sectorMask(m.userData.ang,pointer);
-    if(m.userData.ridge){bgTmp.setScalar(0.88);}
-    else{bgTmp.copy(bA).lerp(bB,mk).multiplyScalar(0.64);}
+    if(m.userData.ridge){
+      bgTmp.copy(mtnPal[ia]).lerp(mtnPal[ib],mk).multiplyScalar(0.95);
+    }else{bgTmp.copy(bA).lerp(bB,mk).multiplyScalar(0.64);}
     m.material.color.copy(bgTmp);
     if(!m.userData.ridge){const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);if(tf&&m.material.map!==tf)m.material.map=tf;}
   }
   for(const m of bgFarMountains){
     const mk=sectorMask(m.userData.ang,pointer);
-    if(m.userData.ridge){bgTmp.setScalar(0.92).lerp(folFog,0.18);}
-    else{bgTmp.copy(bA).lerp(bB,mk).lerp(folFog,0.45);}
+    if(m.userData.ridge){
+      bgTmp.copy(mtnPal[ia]).lerp(mtnPal[ib],mk).lerp(folFog,0.45).multiplyScalar(0.88);
+    }else{bgTmp.copy(bA).lerp(bB,mk).lerp(folFog,0.45);}
     m.material.color.copy(bgTmp);
     if(!m.userData.ridge){const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);if(tf&&m.material.map!==tf)m.material.map=tf;}
   }
@@ -1407,13 +1440,11 @@ function updateFoliageTint(A,B,pointer,winterW){
     const tf=mk>0.5?seasonTex(vT,B):seasonTex(vT,A);
     if(tf&&m.material.map!==tf)m.material.map=tf;
   }
-  const houseWhite=new THREE.Color(1,1,1);
   for(const h of bgHouses){
     const mk=sectorMask(h.userData.ang,pointer);
     const cur=mk>0.5?B:A;
-    bgTmp.copy(bA).lerp(bB,mk).lerp(houseWhite,0.35);
-    h.userData.mat.color.copy(bgTmp);
-    h.userData.mat.map=cur===4?houseSnow:houseWood;
+    const snowOn=cur===4;
+    for(const s of h.userData.snow)s.visible=snowOn;
   }
   for(const ms of bgMist)ms.material.opacity=ms.userData.baseOp*0.8;
   for(const m of bgFoliage){
@@ -2647,12 +2678,12 @@ const grass=new THREE.Mesh(grassGeo,grassMat);
 grass.frustumCulled=false;discGroup.add(grass);
 
 /* 盘外背景草：盘缘铺到远山，复用盘内同一套风动与季节着色 */
-const BG_BLADE=pc(58000,20000);
+const BG_BLADE=pc(92000,28000);
 const bgGrassGeo=bladeGeometry();
 {
   const off=new Float32Array(BG_BLADE*2),dat=new Float32Array(BG_BLADE*4),ang=new Float32Array(BG_BLADE);
   for(let i=0;i<BG_BLADE;i++){
-    const r=Math.sqrt(rndRange(10.8*10.8,20.5*20.5));
+    const r=Math.sqrt(rndRange(10.8*10.8,21.0*21.0));
     const a=Math.random()*TAU;
     off[i*2]=Math.cos(a)*r;off[i*2+1]=Math.sin(a)*r;
     ang[i]=a;
@@ -4337,10 +4368,10 @@ function animate(){
     const beamEnv=springW*0.9+w[2]*1.0+w[3]*0.45+w[4]*0.30;
     for(const bm of beamMats){bm.uniforms.uTime.value=simTime;bm.uniforms.uOpacity.value=0.30*beamEnv;}
     dustMat.uniforms.uOpacity.value=0.55*(springW*0.8+w[2]*0.7);
-    scene.fog.color.setHex(0x7c8c83);
-    scene.fog.near=24;scene.fog.far=58;
-    key.color.setRGB(1.0,0.96,0.86);key.intensity=1.45;
-    hemi.color.setRGB(0.84,0.90,0.86);hemi.groundColor.setRGB(0.30,0.32,0.24);hemi.intensity=0.92;
+    scene.fog.color.setHex(0x9fbcc7);
+    scene.fog.near=27;scene.fog.far=74;
+    key.color.setRGB(1.0,0.96,0.86);key.intensity=1.62;
+    hemi.color.setRGB(0.86,0.91,0.87);hemi.groundColor.setRGB(0.34,0.36,0.27);hemi.intensity=1.06;
   }else{
     for(const bm of beamMats)bm.uniforms.uOpacity.value=0;
     dustMat.uniforms.uOpacity.value=0;
