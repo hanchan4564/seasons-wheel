@@ -735,53 +735,73 @@ function _vnoise(x,z){
 }
 function _fbm(x,z){let v=0,amp=0.5,fr=1;for(let o=0;o<4;o++){v+=amp*_vnoise(x*fr,z*fr);amp*=0.5;fr*=2.1;}return v;}
 function _ss(e0,e1,x){const t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*(3-2*t);}
-function makeRidge(R,H,seed,NS,K,aCenter){
+function makeTerrainMountain(seed,aCenter,layer){
   const rnd=_mulberry((seed*1000)|0);
-  const pos=[],col=[],idx=[];
-  const cFoot=new THREE.Color(0.15,0.28,0.13);
-  const cMid =new THREE.Color(0.27,0.39,0.22);
-  const cRock=new THREE.Color(0.48,0.49,0.47);
-  const peaks=[];const PN=14;
-  for(let p=0;p<PN;p++)peaks.push({a:rnd()*TAU,w:0.03+rnd()*0.05,h:0.7+rnd()*0.7});
-  const ridge=[];
-  for(let i=0;i<=NS;i++){
-    const a=i/NS*TAU;
-    let pk=0;
-    for(const p of peaks){const da=Math.atan2(Math.sin(a-p.a),Math.cos(a-p.a));pk+=p.h*Math.exp(-Math.abs(da)/p.w);}
-    const n1=_fbm(Math.cos(a)*1.5+seed,Math.sin(a)*1.5-seed);
-    const n2=_fbm(Math.cos(a)*5.5-seed,Math.sin(a)*5.5+seed);
-    let h=H*(0.20+0.13*n1+0.17*n2+0.62*Math.min(1.15,pk));
-    const dAng=Math.atan2(Math.sin(a-aCenter),Math.cos(a-aCenter));
-    const wAng=1-_ss(1.05,1.85,Math.abs(dAng));
-    ridge.push(h*wAng);
+  const far=layer==='far';
+  const NA=far?110:80, NR=far?26:12;
+  const rNear=far?21:16.5, rFar=far?28:19.5;
+  const Hmax=far?8.0:2.0, halfAng=far?1.5:1.7;
+  const peaks=[];
+  if(far){
+    peaks.push({a:aCenter-0.32,r:24.5,wa:0.26,wr:2.0,hh:0.85});
+    peaks.push({a:aCenter+0.28,r:25.0,wa:0.24,wr:1.8,hh:0.78});
+    const aOff=[-1.05,-0.62,0.02,0.66,1.12];
+    for(const o of aOff)peaks.push({a:aCenter+o,r:rndRange(23.0,26.0),wa:rndRange(0.10,0.14),wr:rndRange(1.0,1.25),hh:rndRange(0.66,0.76)});
+    const sOff=[-0.55,0.50,1.42];
+    for(const o of sOff)peaks.push({a:aCenter+o,r:rndRange(26.0,27.0),wa:rndRange(0.06,0.08),wr:rndRange(0.55,0.7),hh:rndRange(0.52,0.58)});
+  }else{
+    peaks.push({a:aCenter-0.7,r:18.0,wa:0.5,wr:2.2,hh:0.8});
+    peaks.push({a:aCenter+0.5,r:18.2,wa:0.55,wr:2.3,hh:0.7});
   }
-  for(let k=0;k<=K;k++){
-    const t=k/K;
-    const prof=Math.pow(t,0.70);
-    const rx=R-4.2*t;
-    for(let i=0;i<=NS;i++){
-      const a=i/NS*TAU;
-      const gn1=_fbm(a*5.0+seed,seed*1.3);
-      const gn2=_fbm(a*13.0-seed,seed*2.1);
-      const g=((gn1-0.5)*0.6+(gn2-0.5)*0.4)*2*t*H*0.36;
-      let y=ridge[i]*prof+H*0.16*Math.sin(Math.min(t/0.22,1)*Math.PI/2)*(ridge[i]/H)-g;
-      y=Math.max(0,y);
-      const wob=(gn1-0.5)*0.45*t;
-      pos.push(Math.cos(a)*(rx+wob),y,Math.sin(a)*(rx+wob));
-      const f=Math.min(1,y/(H*1.15));
-      const c=f<0.5?cFoot.clone().lerp(cMid,f*2):cMid.clone().lerp(cRock,(f-0.5)*2);
-      const bn=0.78+0.34*_fbm(Math.cos(a)*3+seed,t*2+seed);
-      const shade=g>0?0.80:1.10;
-      c.multiplyScalar(bn*shade);
+  const cFoot=new THREE.Color(0.12,0.23,0.10);
+  const cMid =new THREE.Color(0.22,0.33,0.17);
+  const cRock=new THREE.Color(0.42,0.43,0.42);
+  const cSnow=new THREE.Color(0.80,0.81,0.79);
+  const H=[];
+  for(let j=0;j<=NR;j++){
+    const t=j/NR, r=rNear+(rFar-rNear)*t;
+    H[j]=[];
+    for(let i=0;i<=NA;i++){
+      const a=i/NA*TAU;
+      let h=Hmax*0.03*_fbm(Math.cos(a)*1.6+seed,Math.sin(a)*1.6-seed);
+      for(const p of peaks){
+        const da=Math.atan2(Math.sin(a-p.a),Math.cos(a-p.a));
+        const dr=r-p.r;
+        h+=Hmax*p.hh*Math.exp(-((da/p.wa)**2)-((dr/p.wr)**2));
+      }
+      const dAng=Math.abs(Math.atan2(Math.sin(a-aCenter),Math.cos(a-aCenter)));
+      const wAng=1-_ss(halfAng-0.30,halfAng,dAng);
+      const wR=_ss(rNear,rNear+2.5,r)*(1-_ss(rFar-2.5,rFar,r));
+      H[j].push(Math.max(0,h*wAng*wR));
+    }
+  }
+  const pos=[],col=[],idx=[];
+  const c=new THREE.Color();
+  for(let j=0;j<=NR;j++){
+    const t=j/NR, r=rNear+(rFar-rNear)*t;
+    for(let i=0;i<=NA;i++){
+      const a=i/NA*TAU, h=H[j][i];
+      pos.push(Math.cos(a)*r,h,Math.sin(a)*r);
+      const jr=j<NR?H[j+1][i]-h:h-(j>0?H[j-1][i]:0);
+      const ja=i<NA?H[j][i+1]-h:h-(i>0?H[j][i-1]:0);
+      const slope=Math.abs(jr)/((rFar-rNear)/NR)+Math.abs(ja)/(TAU/NA*r);
+      const f=Math.min(1,h/Hmax);
+      let rock=Math.max(f>0.62?(f-0.62)/0.38:0, _ss(0.55,1.15,slope));
+      rock=Math.min(1,rock);
+      if(f<0.5)c.copy(cFoot).lerp(cMid,f*2);
+      else c.copy(cMid).lerp(cRock,(f-0.5)*2);
+      if(rock>0)c.lerp(cRock,rock*0.8);
+      if(f>0.72)c.lerp(cRock,0.25);
+      if(f>0.62)c.lerp(cSnow,Math.min(1,(f-0.62)/0.38)*0.9);
+      const bn=0.80+0.30*_fbm(Math.cos(a)*3+seed,t*2+seed);
+      c.multiplyScalar(bn);
       col.push(c.r,c.g,c.b);
     }
   }
-  const row=NS+1;
-  for(let k=0;k<K;k++){
-    for(let i=0;i<NS;i++){
-      const a=k*row+i,b=a+1,c=(k+1)*row+i,d=c+1;
-      idx.push(a,c,b,b,c,d);
-    }
+  const row=NA+1;
+  for(let j=0;j<NR;j++)for(let i=0;i<NA;i++){
+    const A=j*row+i,B=A+1,C=(j+1)*row+i,D=C+1;
+    idx.push(A,C,B,B,C,D);
   }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
@@ -792,11 +812,11 @@ function makeRidge(R,H,seed,NS,K,aCenter){
 const bgMountains=[];
 const bgFarMountains=[];
 const ridgeNearMat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false});
-const ridgeFarMat =new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false,transparent:true,opacity:0.55});
-const mtnNear=new THREE.Mesh(makeRidge(21.5,2.6,3.1,170,8,4.19),ridgeNearMat);
+const ridgeFarMat =new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,fog:false,transparent:false,opacity:1});
+const mtnNear=new THREE.Mesh(makeTerrainMountain(3.1,4.19,'near'),ridgeNearMat);
 mtnNear.frustumCulled=false;mtnNear.userData.ang=0;mtnNear.userData.ridge=true;
 bgGroup.add(mtnNear);bgMountains.push(mtnNear);
-const mtnFar=new THREE.Mesh(makeRidge(26.5,8.2,7.7,170,8,4.19),ridgeFarMat);
+const mtnFar=new THREE.Mesh(makeTerrainMountain(7.7,4.19,'far'),ridgeFarMat);
 mtnFar.frustumCulled=false;mtnFar.userData.ang=0;mtnFar.userData.ridge=true;
 bgGroup.add(mtnFar);bgFarMountains.push(mtnFar);
 
@@ -827,7 +847,7 @@ function jitterGeo(geo,amt,seed){
 }
 const innerGeoA=new THREE.SphereGeometry(1,14,11);jitterGeo(innerGeoA,0.18,11);
 const innerGeoB=new THREE.SphereGeometry(1,14,11);jitterGeo(innerGeoB,0.18,29);
-const innerMat=new THREE.MeshLambertMaterial({color:0x16300f,fog:false});
+const innerMat=new THREE.MeshLambertMaterial({color:0x1d3f15,fog:false});
 innerMat.toneMapped=false;
 const _m4=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_s=new THREE.Vector3(),_p=new THREE.Vector3(),_c=new THREE.Color();
 function makeTree3D(h,seed,kind){
@@ -868,7 +888,7 @@ function makeTree3D(h,seed,kind){
     lump.position.set(c.x,c.y,c.z);
     lump.scale.set(rx*c.r*0.60,ry*c.r*0.60,rx*c.r*0.60);grp.add(lump);
   }
-  const N=bush?Math.round(h*70):Math.round(h*120);
+  const N=bush?Math.round(h*95):Math.round(h*160);
   const crown=new THREE.InstancedMesh(leafPlaneGeo,crownMat,N);
   for(let i=0;i<N;i++){
     const c=centers[(Math.random()*centers.length)|0];
@@ -879,7 +899,11 @@ function makeTree3D(h,seed,kind){
     _e.set(rndRange(-0.8,0.8),Math.random()*TAU,rndRange(-0.8,0.8));_q.setFromEuler(_e);
     const ls=h*rndRange(0.19,0.28);_s.set(ls,ls,ls);
     _m4.compose(_p,_q,_s);crown.setMatrixAt(i,_m4);
-    const sh=rndRange(0.70,0.95);_c.setRGB(sh,sh,sh);crown.setColorAt(i,_c);
+    const sh=rndRange(0.68,0.95),wv=rng();
+    if(wv<0.34)_c.setRGB(sh*1.06,sh*0.99,sh*0.80);
+    else if(wv<0.70)_c.setRGB(sh,sh,sh);
+    else _c.setRGB(sh*0.82,sh*0.95,sh*1.05);
+    crown.setColorAt(i,_c);
   }
   crown.instanceMatrix.needsUpdate=true;
   grp.add(crown);
@@ -998,6 +1022,7 @@ const bgAnimals=[];
 function bgAnimalTex(url){const t=new THREE.TextureLoader().load(url);t.encoding=THREE.sRGBEncoding;return t;}
 const texDragon=bgAnimalTex('assets/animal/dragonfly.webp');
 const texSquir=bgAnimalTex('assets/animal/squirrel.webp');
+const texSparrow=bgAnimalTex('assets/animal/sparrow.webp');
 function makeButterflyTex(){
   const cv=document.createElement('canvas');cv.width=64;cv.height=64;const x=cv.getContext('2d');
   x.fillStyle='rgba(232,150,170,0.95)';
@@ -1018,12 +1043,10 @@ function spawnBgAnimal(tex,season,ang,rad,y,sc,fly){
   s.userData={season:season,ang:ang,rad:rad,y:y,sc:sc,fly:fly,seed:Math.random()*TAU,baseOp:0.95};
   bgGroup.add(s);bgAnimals.push(s);
 }
-spawnBgAnimal(texButter,1,Math.random()*TAU,17.0,2.2,1.2,true);
-spawnBgAnimal(texButter,1,Math.random()*TAU,18.2,2.6,1.1,true);
-spawnBgAnimal(texDragon,2,Math.random()*TAU,19.5,3.4,1.2,true);
-spawnBgAnimal(texDragon,2,Math.random()*TAU,19.0,3.0,1.1,true);
-spawnBgAnimal(texSquir,3,Math.random()*TAU,17.0,0.35,1.3,false);
-spawnBgAnimal(texSquir,3,Math.random()*TAU,18.2,0.35,1.2,false);
+for(let k=0;k<4;k++)spawnBgAnimal(texButter,1,Math.random()*TAU,rndRange(16.5,18.5),rndRange(2.0,2.8),rndRange(1.0,1.25),true);
+for(let k=0;k<4;k++)spawnBgAnimal(texDragon,2,Math.random()*TAU,rndRange(18.5,19.8),rndRange(2.8,3.6),rndRange(1.0,1.2),true);
+for(let k=0;k<4;k++)spawnBgAnimal(texSquir,3,Math.random()*TAU,rndRange(16.5,18.5),0.35,rndRange(1.1,1.3),false);
+for(let k=0;k<4;k++)spawnBgAnimal(texSparrow,4,Math.random()*TAU,rndRange(16.5,19.0),rndRange(0.5,1.4),rndRange(0.8,1.0),true);
 function bgAnimalsUpdate(t,w){
   for(const s of bgAnimals){
     const u=s.userData;
@@ -1099,13 +1122,15 @@ function updateFoliageTint(A,B,pointer,winterW){
   const vM=folVar.mtn,vT=folVar.tl;
   for(const m of bgMountains){
     const mk=sectorMask(m.userData.ang,pointer);
-    bgTmp.copy(bA).lerp(bB,mk).multiplyScalar(0.64);
+    if(m.userData.ridge){bgTmp.setScalar(0.88);}
+    else{bgTmp.copy(bA).lerp(bB,mk).multiplyScalar(0.64);}
     m.material.color.copy(bgTmp);
     if(!m.userData.ridge){const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);if(tf&&m.material.map!==tf)m.material.map=tf;}
   }
   for(const m of bgFarMountains){
     const mk=sectorMask(m.userData.ang,pointer);
-    bgTmp.copy(bA).lerp(bB,mk).lerp(folFog,0.45);
+    if(m.userData.ridge){bgTmp.setScalar(0.92).lerp(folFog,0.18);}
+    else{bgTmp.copy(bA).lerp(bB,mk).lerp(folFog,0.45);}
     m.material.color.copy(bgTmp);
     if(!m.userData.ridge){const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);if(tf&&m.material.map!==tf)m.material.map=tf;}
   }
