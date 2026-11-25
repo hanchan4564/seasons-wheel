@@ -629,7 +629,12 @@ const groundMat=new THREE.ShaderMaterial({
       vec3 col=mix(uColA,uColB,mk);
       float n1=hash(floor(vXZ*2.0));
       float n2=hash(floor(vXZ*7.0));
-      col*=0.93+0.10*n1+0.06*n2;
+      float n3=hash(floor(vXZ*15.0));
+      float n4=hash(floor(vXZ*31.0));
+      col*=0.90+0.10*n1+0.06*n2+0.04*n3+0.03*n4;
+      /* 远景微弱湿润反光：冷亮随距离渐显，呼应湿地地表 */
+      float wet=smoothstep(10.0,24.0,vR);
+      col+=vec3(0.05,0.06,0.06)*wet*(0.4+0.6*n4);
       vec3 haze=vec3(0.60,0.65,0.66);
       col=mix(col,haze,smoothstep(12.0,26.0,vR)*0.50);
       float a=smoothstep(30.0,13.0,vR)*0.96;
@@ -753,8 +758,8 @@ function makeTerrainMountain(seed,aCenter,layer){
     const sOff=[-0.55,0.50,1.42];
     for(const o of sOff)peaks.push({a:aCenter+o,r:rndRange(26.0,27.0),wa:rndRange(0.06,0.08),wr:rndRange(0.55,0.7),hh:rndRange(0.52,0.58)});
   }else{
-    peaks.push({a:aCenter-0.7,r:18.0,wa:0.5,wr:2.2,hh:0.8});
-    peaks.push({a:aCenter+0.5,r:18.2,wa:0.55,wr:2.3,hh:0.7});
+    peaks.push({a:aCenter-0.65,r:18.3,wa:0.72,wr:2.8,hh:0.66});
+    peaks.push({a:aCenter+0.55,r:18.4,wa:0.78,wr:3.0,hh:0.60});
   }
   const cFoot=new THREE.Color(0.12,0.23,0.10);
   const cMid =new THREE.Color(0.22,0.33,0.17);
@@ -772,6 +777,9 @@ function makeTerrainMountain(seed,aCenter,layer){
         const dr=r-p.r;
         h+=Hmax*p.hh*Math.exp(-((da/p.wa)**2)-((dr/p.wr)**2));
       }
+      /* 连绵基底缓丘：峰脚连续过渡，避免孤立尖包 */
+      const baseR=far?25.0:18.5;
+      h+=Hmax*(far?0.10:0.18)*Math.exp(-(((r-baseR)/3.4)**2));
       const dAng=Math.abs(Math.atan2(Math.sin(a-aCenter),Math.cos(a-aCenter)));
       const wAng=1-_ss(halfAng-0.30,halfAng,dAng);
       const wR=_ss(rNear,rNear+2.5,r)*(1-_ss(rFar-2.5,rFar,r));
@@ -789,13 +797,13 @@ function makeTerrainMountain(seed,aCenter,layer){
       const ja=i<NA?H[j][i+1]-h:h-(i>0?H[j][i-1]:0);
       const slope=Math.abs(jr)/((rFar-rNear)/NR)+Math.abs(ja)/(TAU/NA*r);
       const f=Math.min(1,h/Hmax);
-      let rock=Math.max(f>0.62?(f-0.62)/0.38:0, _ss(0.55,1.15,slope));
+      let rock=Math.max(f>0.7?(f-0.7)/0.3:0, _ss(0.72,1.35,slope));
       rock=Math.min(1,rock);
       if(f<0.5)c.copy(cFoot).lerp(cMid,f*2);
       else c.copy(cMid).lerp(cRock,(f-0.5)*2);
-      if(rock>0)c.lerp(cRock,rock*0.8);
-      if(f>0.72)c.lerp(cRock,0.25);
-      if(f>0.62)c.lerp(cSnow,Math.min(1,(f-0.62)/0.38)*0.9);
+      if(rock>0)c.lerp(cRock,rock*(far?0.8:0.5));
+      if(f>0.72)c.lerp(cRock,0.25*(far?1:0.4));
+      if(far&&f>0.62)c.lerp(cSnow,Math.min(1,(f-0.62)/0.38)*0.9);
       const bn=0.80+0.30*_fbm(Math.cos(a)*3+seed,t*2+seed);
       c.multiplyScalar(bn);
       col.push(c.r,c.g,c.b);
@@ -807,7 +815,7 @@ function makeTerrainMountain(seed,aCenter,layer){
     idx.push(A,C,B,B,C,D);
   }
   /* 实体侧壁：内圈(j=0)、外圈(j=NR)从上表面竖直封到地面 y=0，消除纸片感 */
-  const sideCol=new THREE.Color(0.23,0.25,0.22);
+  const sideCol=new THREE.Color(0.30,0.24,0.17);
   function addWall(jRow){
     const r=jRow===0?rNear:rFar;
     const botStart=pos.length/3;
@@ -996,6 +1004,30 @@ for(let i=0;i<MIST_N;i++){
   ms.userData.spd=rndRange(0.05,0.10);
   bgGroup.add(ms);bgMist.push(ms);
 }
+/* 穿林光束：主光方向斜插的半透明光锥（丁达尔体积光），纯几何+着色，不贴背景图；白昼随春夏提亮 */
+const beamDir=new THREE.Vector3(-12,-18,-6).normalize();
+const beamGroup=new THREE.Group();bgGroup.add(beamGroup);
+const BEAM_N=pc(3,2);
+const beamMats=[];
+for(let i=0;i<BEAM_N;i++){
+  const bh=rndRange(10,14),topR=rndRange(0.5,0.9),botR=rndRange(3.0,4.5);
+  const bGeo=new THREE.CylinderGeometry(topR,botR,bh,12,1,true);
+  const bMat=new THREE.ShaderMaterial({
+    uniforms:{uOpacity:{value:0},uColor:{value:new THREE.Color(1.0,0.88,0.62)},uTime:{value:0}},
+    transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,
+    vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`uniform float uOpacity;uniform vec3 uColor;uniform float uTime;varying vec2 vUv;
+      void main(){float along=pow(vUv.y,1.35);float sway=0.92+0.08*sin(uTime*0.3+vUv.y*4.0);float a=along*uOpacity*sway;if(a<0.01)discard;gl_FragColor=vec4(uColor,a);}`
+  });
+  const bm=new THREE.Mesh(bGeo,bMat);
+  const bang=4.19+(i-(BEAM_N-1)/2)*0.34;
+  const brad=rndRange(11.0,14.0);
+  bm.position.set(Math.cos(bang)*brad,rndRange(4.5,6.5),Math.sin(bang)*brad);
+  bm.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0),beamDir);
+  beamGroup.add(bm);beamMats.push(bMat);
+}
+/* 近景暖金浮尘：随光束在空气里缓慢漂浮，白昼春夏可见（创建在粒子工厂定义之后） */
+let dustMat=null;
 /* 远景林带由主树丛远景小树构成，不再叠加横幅贴片 */
 const bgTreelines=[];
 /* 远景村落小屋：程序化贴图，四季坡地人家；冬季屋顶覆雪 */
@@ -2638,6 +2670,13 @@ function makeParticles(N,color,vertBody,sizeRange){
   const pts=new THREE.Points(geo,mat);pts.frustumCulled=false;scene.add(pts);
   return mat;
 }
+/* 近景暖金浮尘：随光束在空气里缓慢漂浮，白昼春夏可见 */
+dustMat=makeParticles(pc(90,50),0xffe6b0,`
+  p.y=0.25+mod(aSeed*6.0+uTime*(0.05+aSeed*0.05),2.8);
+  p.x+=sin(uTime*0.15+aSeed*29.0)*0.8;
+  p.z+=cos(uTime*0.12+aSeed*21.0)*0.8;
+  vA=0.35+0.30*sin(uTime*0.7+aSeed*40.0);
+`,[0.05,0.10]);
 /* 春：白色飞絮，缓慢漂浮 */
 const petalMat=makeParticles(pc(210,110),0xfff6e0,`
   float t=uTime*0.10+aSeed*40.0;
@@ -4107,10 +4146,16 @@ function animate(){
     skyMat.uniforms.uW.value.set(w[1]+w[0],w[2],w[3],w[4]);
     updateFoliageTint(A,B,pAngle,winterW);
     bgAnimalsUpdate(simTime,sdt,w);
+    const springW=w[0]+w[1];
+    const beamEnv=springW*0.9+w[2]*1.0+w[3]*0.45+w[4]*0.30;
+    for(const bm of beamMats){bm.uniforms.uTime.value=simTime;bm.uniforms.uOpacity.value=0.30*beamEnv;}
+    dustMat.uniforms.uOpacity.value=0.55*(springW*0.8+w[2]*0.7);
     scene.fog.color.setHex(0x0a1626);
     key.color.setRGB(1.0,0.97,0.90);key.intensity=1.25;
     hemi.color.setRGB(0.86,0.91,1.0);hemi.intensity=0.9;
   }else{
+    for(const bm of beamMats)bm.uniforms.uOpacity.value=0;
+    dustMat.uniforms.uOpacity.value=0;
     scene.fog.color.setHex(0x02060f);
     key.intensity=0.95;hemi.intensity=0.6;
   }
