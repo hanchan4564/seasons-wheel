@@ -2394,12 +2394,15 @@ const bgGrassGeo=bladeGeometry();
     const a=Math.random()*TAU;
     off[i*2]=Math.cos(a)*r;off[i*2+1]=Math.sin(a)*r;
     ang[i]=a;
-    dat[i*4]=rndRange(0.62,1.05);dat[i*4+1]=Math.random()*TAU;dat[i*4+2]=Math.random();dat[i*4+3]=Math.random()*TAU;
+    dat[i*4]=rndRange(0.74,1.18);dat[i*4+1]=Math.random()*TAU;dat[i*4+2]=Math.random();dat[i*4+3]=Math.random()*TAU;
   }
   bgGrassGeo.setAttribute('aOffset',new THREE.InstancedBufferAttribute(off,2));
   bgGrassGeo.setAttribute('aData',new THREE.InstancedBufferAttribute(dat,4));
   bgGrassGeo.setAttribute('aAngle',new THREE.InstancedBufferAttribute(ang,1));
   bgGrassGeo.instanceCount=BG_BLADE;
+  const bgp=bgGrassGeo.attributes.position;
+  for(let k=0;k<bgp.count;k++)bgp.setX(k,bgp.getX(k)*1.5);
+  bgp.needsUpdate=true;
 }
 const bgGrass=new THREE.Mesh(bgGrassGeo,grassMat);
 bgGrass.frustumCulled=false;bgGroup.add(bgGrass);
