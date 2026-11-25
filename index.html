@@ -955,6 +955,9 @@ function makeTree3D(h,seed,kind){
   return grp;
 }
 /* 主树丛：近景大树—中景灌树—远景草灌，三层错落环绕；整体外推避免树冠遮挡盘面 */
+/* 地标角位：相机在 az=1.05 看向原点，正前方世界角位≈4.19；五座都排在前方视野扇区左右错开 */
+const LM_ANGLES=[4.19,3.35,5.05,3.75,4.70];
+function _angDist(a,b){let d=Math.abs(a-b)%TAU;return d>Math.PI?TAU-d:d;}
 const FOL_N=pc(86,44);
 for(let i=0;i<FOL_N;i++){
   const ang=Math.random()*TAU;
@@ -968,6 +971,9 @@ for(let i=0;i<FOL_N;i++){
   }else{
     rad=rndRange(17.0,21.0);kind=Math.random()<0.5?'bush':'grass';h=rndRange(0.9,1.7);far=true;
   }
+  /* 林窗：地标角位前后让开前排高树与近层灌丛，露出建筑主体，远层草灌保留 */
+  const inGap=LM_ANGLES.some(la=>_angDist(ang,la)<0.34);
+  if(inGap && rad<17.0 && (kind==='tree'||kind==='bush')) continue;
   const px=Math.cos(ang)*rad,pz=Math.sin(ang)*rad;
   const seed=Math.random()*TAU;
   let m;
@@ -1105,48 +1111,58 @@ const LM={
   stoneDark:new THREE.MeshLambertMaterial({color:0x51504a,fog:false}),
   wood:new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false}),
   roof:new THREE.MeshLambertMaterial({color:0x46382c,fog:false}),
+  eaves:new THREE.MeshLambertMaterial({color:0x3a2e24,fog:false}),
   leaf:new THREE.MeshLambertMaterial({color:0x2f5a24,fog:false}),
   plaster:new THREE.MeshLambertMaterial({color:0xc9c2b2,fog:false}),
   ruin:new THREE.MeshLambertMaterial({color:0x5d6066,fog:false}),
-  buddha:new THREE.MeshLambertMaterial({color:0x8a7a58,fog:false})
+  buddha:new THREE.MeshLambertMaterial({color:0x9a7f4e,fog:false}),
+  arch:new THREE.MeshLambertMaterial({color:0x2a241c,fog:false})
 };
 function _lmBox(w,h,d,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);grp.add(m);return m;}
 function _lmCyl(rt,rb,h,seg,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);m.position.set(x,y,z);grp.add(m);return m;}
 function _lmCone(r,h,seg,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,seg),mat);m.position.set(x,y,z);grp.add(m);return m;}
 function _lmSph(r,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat);m.position.set(x,y,z);grp.add(m);return m;}
 function placeLandmark(grp,season,ang,rad){
-  grp.position.set(Math.cos(ang)*rad,0,Math.sin(ang)*rad);
+  grp.position.set(Math.cos(ang)*rad,0.12,Math.sin(ang)*rad);
+  grp.scale.setScalar(1.22);
   grp.lookAt(0,0,0);
   grp.userData={season,ang,rad};
   bgGroup.add(grp);bgLandmarks.push(grp);
 }
-/* 春·密林石砌古堡尖塔 + 大门藤蔓（参考图2） */
+/* 春·密林石砌古堡尖塔 + 雉堞拱门藤蔓（参考图2） */
 function buildCastle(){
   const g=new THREE.Group();
-  _lmBox(1.3,3.2,1.3,LM.stone,0,1.6,0,g);
-  _lmCone(0.95,1.5,4,LM.roof,0,3.95,0,g);
-  _lmBox(1.0,2.4,1.0,LM.stone,-1.7,1.2,0,g);
-  _lmCone(0.75,1.2,4,LM.roof,-1.7,3.0,0,g);
-  _lmBox(0.9,1.8,0.9,LM.stone,1.6,0.9,0,g);
-  _lmCone(0.7,1.0,4,LM.roof,1.6,2.3,0,g);
-  _lmBox(0.28,1.7,0.28,LM.stoneDark,-0.75,0.85,0.5,g);
-  _lmBox(0.28,1.7,0.28,LM.stoneDark,0.75,0.85,0.5,g);
-  _lmBox(1.8,0.3,0.28,LM.stoneDark,0,1.7,0.5,g);
-  _lmSph(0.34,LM.leaf,-0.55,2.4,0.62,g);
-  _lmSph(0.30,LM.leaf,0.5,1.9,0.62,g);
-  _lmSph(0.26,LM.leaf,1.5,1.3,0.5,g);
+  _lmBox(1.4,4.0,1.4,LM.stone,0,2.0,0,g);
+  _lmCone(1.0,1.6,4,LM.roof,0,4.8,0,g);
+  for(let c=-1;c<=1;c++){
+    _lmBox(0.24,0.30,0.24,LM.stone,c*0.45,4.15,0.5,g);
+    _lmBox(0.24,0.30,0.24,LM.stone,c*0.45,4.15,-0.5,g);
+  }
+  _lmBox(1.1,3.0,1.1,LM.stone,-1.8,1.5,0,g);
+  _lmCone(0.8,1.3,4,LM.roof,-1.8,3.65,0,g);
+  _lmBox(1.0,2.3,1.0,LM.stone,1.7,1.15,0,g);
+  _lmCone(0.72,1.1,4,LM.roof,1.7,2.85,0,g);
+  _lmBox(0.28,1.8,0.28,LM.stoneDark,-0.75,0.9,0.5,g);
+  _lmBox(0.28,1.8,0.28,LM.stoneDark,0.75,0.9,0.5,g);
+  _lmBox(1.8,0.3,0.28,LM.stoneDark,0,1.8,0.5,g);
+  _lmBox(0.6,1.2,0.12,LM.arch,0,0.6,0.66,g);
+  _lmSph(0.34,LM.leaf,-0.6,2.6,0.62,g);
+  _lmSph(0.30,LM.leaf,0.55,2.0,0.62,g);
+  _lmSph(0.26,LM.leaf,1.6,1.4,0.5,g);
   return g;
 }
 /* 夏·岩壁竹林小屋 + 石阶（参考图3） */
 function buildBambooHouse(){
   const g=new THREE.Group();
-  _lmBox(1.4,1.1,1.2,LM.plaster,0,0.55,0,g);
-  _lmCone(1.05,0.7,4,LM.roof,0,1.45,0,g);
+  _lmBox(1.4,1.2,1.2,LM.plaster,0,0.6,0,g);
+  _lmCone(1.05,0.7,4,LM.roof,0,1.55,0,g);
   const bx=[-1.3,-1.6,-1.0,1.3,1.6,1.1,-1.4];
   for(let i=0;i<bx.length;i++){
-    const h=2.6+((i*37)%10)/10*0.9;
-    const c=_lmCyl(0.05,0.06,h,5,LM.leaf,bx[i],h/2,-0.5+(i%2*0.3),g);
+    const h=3.0+((i*37)%10)/10*0.9;
+    const bz=-0.5+(i%2*0.3);
+    const c=_lmCyl(0.05,0.06,h,5,LM.leaf,bx[i],h/2,bz,g);
     c.rotation.z=(bx[i]>0?-1:1)*0.06;
+    _lmSph(0.17,LM.leaf,bx[i],h+0.05,bz,g);
   }
   for(let s=0;s<3;s++)_lmBox(1.0,0.16,0.5,LM.stone,0,0.08+s*0.16,0.9+s*0.45,g);
   return g;
@@ -1159,9 +1175,13 @@ function buildStiltHouse(){
   _lmBox(1.7,0.16,1.5,LM.wood,0,1.5,0,g);
   _lmBox(1.2,1.0,1.1,LM.plaster,0,2.08,0,g);
   _lmCone(0.95,0.6,4,LM.roof,0,2.88,0,g);
-  for(let d=0;d<2;d++)_lmBox(0.5,0.10,1.1,LM.wood,0,1.45,1.2+d*1.0,g);
+  for(let d=0;d<3;d++)_lmBox(0.5,0.10,1.0,LM.wood,0,1.45,1.0+d*0.95,g);
   const wheel=_lmCyl(0.55,0.55,0.10,10,LM.wood,1.1,1.1,-0.3,g);
   wheel.rotation.z=Math.PI/2;wheel.rotation.y=Math.PI/2;
+  const sp1=_lmBox(1.0,0.07,0.07,LM.roof,1.1,1.1,-0.3,g);
+  sp1.rotation.z=Math.PI/2;sp1.rotation.y=Math.PI/2;
+  const sp2=_lmBox(0.07,1.0,0.07,LM.roof,1.1,1.1,-0.3,g);
+  sp2.rotation.z=Math.PI/2;sp2.rotation.y=Math.PI/2;
   const palm=_lmCyl(0.06,0.08,1.9,5,LM.wood,-1.1,0.95,-0.4,g);
   palm.rotation.z=0.18;
   _lmSph(0.22,LM.leaf,-1.25,1.9,-0.4,g);
@@ -1170,35 +1190,37 @@ function buildStiltHouse(){
 /* 秋·石窟坐佛 + 头光 + 侧旁木楼 + 石径（参考图6） */
 function buildTemple(){
   const g=new THREE.Group();
-  _lmBox(3.4,3.0,0.8,LM.stoneDark,0,1.5,-0.3,g);
-  _lmCyl(0.45,0.62,0.95,8,LM.buddha,0,0.75,0.1,g);
-  _lmSph(0.32,LM.buddha,0,1.62,0.1,g);
-  const halo=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.06,8,18),LM.buddha);
-  halo.position.set(0,1.62,-0.05);g.add(halo);
+  _lmBox(3.6,3.4,0.8,LM.stoneDark,0,1.7,-0.3,g);
+  _lmCyl(0.48,0.66,1.0,8,LM.buddha,0,0.8,0.1,g);
+  _lmSph(0.34,LM.buddha,0,1.78,0.1,g);
+  const halo=new THREE.Mesh(new THREE.TorusGeometry(0.44,0.06,8,18),LM.buddha);
+  halo.position.set(0,1.78,-0.05);g.add(halo);
   _lmBox(1.1,0.9,1.0,LM.wood,1.6,0.65,0,g);
-  _lmBox(1.3,0.12,1.2,LM.roof,1.6,1.15,0,g);
+  _lmBox(1.4,0.12,1.25,LM.eaves,1.6,1.15,0,g);
   _lmBox(1.0,0.8,0.95,LM.wood,1.6,1.65,0,g);
-  _lmBox(1.2,0.12,1.1,LM.roof,1.6,2.1,0,g);
+  _lmBox(1.3,0.12,1.15,LM.eaves,1.6,2.1,0,g);
   for(let s=0;s<3;s++)_lmBox(1.0,0.16,0.5,LM.stone,0,0.08+s*0.16,0.9+s*0.45,g);
   return g;
 }
 /* 冬·废墟断墙 + 残骸堆 + 斜拉电线（参考图1） */
 function buildRuin(){
   const g=new THREE.Group();
-  _lmBox(0.35,1.7,1.6,LM.ruin,-1.2,0.85,0,g);
-  _lmBox(0.35,1.1,1.2,LM.ruin,0.2,0.55,0.2,g);
-  _lmBox(0.35,0.8,1.0,LM.ruin,1.3,0.4,0,g);
+  _lmBox(0.35,2.0,1.6,LM.ruin,-1.2,1.0,0,g);
+  _lmBox(0.35,1.3,1.2,LM.ruin,0.2,0.65,0.2,g);
+  _lmBox(0.35,0.9,1.0,LM.ruin,1.3,0.45,0,g);
   _lmBox(0.7,0.4,0.6,LM.stoneDark,-0.5,0.2,0.7,g);
   _lmBox(0.5,0.3,0.5,LM.stoneDark,0.9,0.15,0.6,g);
-  const wire=_lmCyl(0.015,0.015,2.2,4,LM.stoneDark,-0.5,1.85,0,g);
+  const beam=_lmBox(1.9,0.18,0.22,LM.stoneDark,-0.2,1.5,0.1,g);
+  beam.rotation.z=0.35;
+  const wire=_lmCyl(0.015,0.015,2.2,4,LM.stoneDark,-0.5,2.1,0,g);
   wire.rotation.z=Math.PI/2;
   return g;
 }
-placeLandmark(buildCastle(),1,4.10,14.2);
-placeLandmark(buildBambooHouse(),2,2.55,14.2);
-placeLandmark(buildStiltHouse(),2,-1.57,16.0);
-placeLandmark(buildTemple(),3,5.35,14.2);
-placeLandmark(buildRuin(),4,1.30,14.2);
+placeLandmark(buildCastle(),1,LM_ANGLES[0],14.4);
+placeLandmark(buildBambooHouse(),2,LM_ANGLES[1],14.4);
+placeLandmark(buildStiltHouse(),2,LM_ANGLES[2],16.0);
+placeLandmark(buildTemple(),3,LM_ANGLES[3],14.4);
+placeLandmark(buildRuin(),4,LM_ANGLES[4],14.4);
 /* 背景 3D 动物：去掉 Sprite 贴纸，实体模型/程序化形体并带动作（狐骨骼动画 · 鸟虫扇翅） */
 const bgAnimals=[];
 const animalLoader=new THREE.GLTFLoader();
@@ -3881,6 +3903,9 @@ let runPhase=0,catWinter=0;
 let userAz=0,userEl=0,zoom=1;
 const reduced=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 if(reduced){paused=true;totalAngle=TAU*1.62;}
+/* 本地复核用：?season=1春 2夏 3秋 4冬，定格到对应季节 */
+let __sq=location.search.match(/[?&]season=([1-4])/);
+if(__sq){const __sn=+__sq[1];totalAngle=(__sn-1)*TAU+TAU*0.97;paused=true;}
 
 function seasonB(r){return r===0?1:1+(r%4);}
 function seasonA(r){return r===0?0:seasonB(r-1);}
