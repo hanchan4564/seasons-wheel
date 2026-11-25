@@ -1098,6 +1098,107 @@ for(let i=0;i<HOUSE_N;i++){
   sh.scale.set(sc*0.7,1,sc*0.55);
   bgGroup.add(sh);bgGroup.add(h);bgHouses.push(h);
 }
+/* ===== 分地区地标：把参考场景主体用基础几何程序化落到环形背景带，按季节权重显隐 ===== */
+const bgLandmarks=[];
+const LM={
+  stone:new THREE.MeshLambertMaterial({color:0x6b6a63,fog:false}),
+  stoneDark:new THREE.MeshLambertMaterial({color:0x51504a,fog:false}),
+  wood:new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false}),
+  roof:new THREE.MeshLambertMaterial({color:0x46382c,fog:false}),
+  leaf:new THREE.MeshLambertMaterial({color:0x2f5a24,fog:false}),
+  plaster:new THREE.MeshLambertMaterial({color:0xc9c2b2,fog:false}),
+  ruin:new THREE.MeshLambertMaterial({color:0x5d6066,fog:false}),
+  buddha:new THREE.MeshLambertMaterial({color:0x8a7a58,fog:false})
+};
+function _lmBox(w,h,d,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);grp.add(m);return m;}
+function _lmCyl(rt,rb,h,seg,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);m.position.set(x,y,z);grp.add(m);return m;}
+function _lmCone(r,h,seg,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,seg),mat);m.position.set(x,y,z);grp.add(m);return m;}
+function _lmSph(r,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat);m.position.set(x,y,z);grp.add(m);return m;}
+function placeLandmark(grp,season,ang,rad){
+  grp.position.set(Math.cos(ang)*rad,0,Math.sin(ang)*rad);
+  grp.lookAt(0,0,0);
+  grp.userData={season,ang,rad};
+  bgGroup.add(grp);bgLandmarks.push(grp);
+}
+/* 春·密林石砌古堡尖塔 + 大门藤蔓（参考图2） */
+function buildCastle(){
+  const g=new THREE.Group();
+  _lmBox(1.3,3.2,1.3,LM.stone,0,1.6,0,g);
+  _lmCone(0.95,1.5,4,LM.roof,0,3.95,0,g);
+  _lmBox(1.0,2.4,1.0,LM.stone,-1.7,1.2,0,g);
+  _lmCone(0.75,1.2,4,LM.roof,-1.7,3.0,0,g);
+  _lmBox(0.9,1.8,0.9,LM.stone,1.6,0.9,0,g);
+  _lmCone(0.7,1.0,4,LM.roof,1.6,2.3,0,g);
+  _lmBox(0.28,1.7,0.28,LM.stoneDark,-0.75,0.85,0.5,g);
+  _lmBox(0.28,1.7,0.28,LM.stoneDark,0.75,0.85,0.5,g);
+  _lmBox(1.8,0.3,0.28,LM.stoneDark,0,1.7,0.5,g);
+  _lmSph(0.34,LM.leaf,-0.55,2.4,0.62,g);
+  _lmSph(0.30,LM.leaf,0.5,1.9,0.62,g);
+  _lmSph(0.26,LM.leaf,1.5,1.3,0.5,g);
+  return g;
+}
+/* 夏·岩壁竹林小屋 + 石阶（参考图3） */
+function buildBambooHouse(){
+  const g=new THREE.Group();
+  _lmBox(1.4,1.1,1.2,LM.plaster,0,0.55,0,g);
+  _lmCone(1.05,0.7,4,LM.roof,0,1.45,0,g);
+  const bx=[-1.3,-1.6,-1.0,1.3,1.6,1.1,-1.4];
+  for(let i=0;i<bx.length;i++){
+    const h=2.6+((i*37)%10)/10*0.9;
+    const c=_lmCyl(0.05,0.06,h,5,LM.leaf,bx[i],h/2,-0.5+(i%2*0.3),g);
+    c.rotation.z=(bx[i]>0?-1:1)*0.06;
+  }
+  for(let s=0;s<3;s++)_lmBox(1.0,0.16,0.5,LM.stone,0,0.08+s*0.16,0.9+s*0.45,g);
+  return g;
+}
+/* 夏·水上架空木屋 + 栈桥 + 水车 + 棕榈（参考图4） */
+function buildStiltHouse(){
+  const g=new THREE.Group();
+  for(const px of [-0.7,0.7])for(const pz of [-0.6,0.6])
+    _lmCyl(0.09,0.10,1.5,6,LM.wood,px,0.75,pz,g);
+  _lmBox(1.7,0.16,1.5,LM.wood,0,1.5,0,g);
+  _lmBox(1.2,1.0,1.1,LM.plaster,0,2.08,0,g);
+  _lmCone(0.95,0.6,4,LM.roof,0,2.88,0,g);
+  for(let d=0;d<2;d++)_lmBox(0.5,0.10,1.1,LM.wood,0,1.45,1.2+d*1.0,g);
+  const wheel=_lmCyl(0.55,0.55,0.10,10,LM.wood,1.1,1.1,-0.3,g);
+  wheel.rotation.z=Math.PI/2;wheel.rotation.y=Math.PI/2;
+  const palm=_lmCyl(0.06,0.08,1.9,5,LM.wood,-1.1,0.95,-0.4,g);
+  palm.rotation.z=0.18;
+  _lmSph(0.22,LM.leaf,-1.25,1.9,-0.4,g);
+  return g;
+}
+/* 秋·石窟坐佛 + 头光 + 侧旁木楼 + 石径（参考图6） */
+function buildTemple(){
+  const g=new THREE.Group();
+  _lmBox(3.4,3.0,0.8,LM.stoneDark,0,1.5,-0.3,g);
+  _lmCyl(0.45,0.62,0.95,8,LM.buddha,0,0.75,0.1,g);
+  _lmSph(0.32,LM.buddha,0,1.62,0.1,g);
+  const halo=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.06,8,18),LM.buddha);
+  halo.position.set(0,1.62,-0.05);g.add(halo);
+  _lmBox(1.1,0.9,1.0,LM.wood,1.6,0.65,0,g);
+  _lmBox(1.3,0.12,1.2,LM.roof,1.6,1.15,0,g);
+  _lmBox(1.0,0.8,0.95,LM.wood,1.6,1.65,0,g);
+  _lmBox(1.2,0.12,1.1,LM.roof,1.6,2.1,0,g);
+  for(let s=0;s<3;s++)_lmBox(1.0,0.16,0.5,LM.stone,0,0.08+s*0.16,0.9+s*0.45,g);
+  return g;
+}
+/* 冬·废墟断墙 + 残骸堆 + 斜拉电线（参考图1） */
+function buildRuin(){
+  const g=new THREE.Group();
+  _lmBox(0.35,1.7,1.6,LM.ruin,-1.2,0.85,0,g);
+  _lmBox(0.35,1.1,1.2,LM.ruin,0.2,0.55,0.2,g);
+  _lmBox(0.35,0.8,1.0,LM.ruin,1.3,0.4,0,g);
+  _lmBox(0.7,0.4,0.6,LM.stoneDark,-0.5,0.2,0.7,g);
+  _lmBox(0.5,0.3,0.5,LM.stoneDark,0.9,0.15,0.6,g);
+  const wire=_lmCyl(0.015,0.015,2.2,4,LM.stoneDark,-0.5,1.85,0,g);
+  wire.rotation.z=Math.PI/2;
+  return g;
+}
+placeLandmark(buildCastle(),1,4.10,14.2);
+placeLandmark(buildBambooHouse(),2,2.55,14.2);
+placeLandmark(buildStiltHouse(),2,-1.57,16.0);
+placeLandmark(buildTemple(),3,5.35,14.2);
+placeLandmark(buildRuin(),4,1.30,14.2);
 /* 背景 3D 动物：去掉 Sprite 贴纸，实体模型/程序化形体并带动作（狐骨骼动画 · 鸟虫扇翅） */
 const bgAnimals=[];
 const animalLoader=new THREE.GLTFLoader();
@@ -1172,6 +1273,12 @@ function bgAnimalsUpdate(t,dt,w){
       const flap=Math.sin(t*(u.kind==='bird'?13:18)+u.seed)*0.7;
       u.wl.rotation.z=0.25+flap;u.wr.rotation.z=-0.25-flap;
     }
+  }
+}
+function landmarksUpdate(w){
+  for(const l of bgLandmarks){
+    const amt=easeW(w[l.userData.season]);
+    l.visible=amt>0.03;
   }
 }
 const folTint=[
@@ -4189,6 +4296,7 @@ function animate(){
     scene.fog.color.setHex(0x02060f);
     key.intensity=0.95;hemi.intensity=0.6;
   }
+  landmarksUpdate(w);
   seasonUniforms.uWinterA.value=A===4?1:0;
   seasonUniforms.uWinterB.value=B===4?1:0;
   driftMat.uniforms.uW.value=winterW*(0.75+w[4]*0.35);
