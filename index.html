@@ -746,9 +746,9 @@ function _ss(e0,e1,x){const t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*
 function makeTerrainMountain(seed,aCenter,layer){
   const rnd=_mulberry((seed*1000)|0);
   const far=layer==='far';
-  const NA=far?110:80, NR=far?26:12;
+  const NA=far?110:84, NR=far?38:20;
   const rNear=far?21:16.5, rFar=far?28:19.5;
-  const Hmax=far?8.0:3.6, halfAng=far?1.5:1.7;
+  const Hmax=far?10.2:5.0, halfAng=far?1.55:1.75;
   const peaks=[];
   if(far){
     peaks.push({a:aCenter-0.32,r:24.5,wa:0.26,wr:2.0,hh:0.85});
@@ -763,10 +763,11 @@ function makeTerrainMountain(seed,aCenter,layer){
     peaks.push({a:aCenter+0.30,r:18.5,wa:0.34,wr:1.9,hh:0.72});
     peaks.push({a:aCenter+0.85,r:18.3,wa:0.30,wr:1.6,hh:0.76});
   }
-  const cFoot=new THREE.Color(0.10,0.22,0.09);
-  const cMid =new THREE.Color(0.18,0.31,0.15);
-  const cRock=new THREE.Color(0.38,0.36,0.32);
-  const cSnow=new THREE.Color(0.80,0.81,0.79);
+  const cFoot=new THREE.Color(0.08,0.20,0.08);
+  const cMid =new THREE.Color(0.16,0.29,0.14);
+  const cRock=new THREE.Color(0.40,0.39,0.36);
+  const cSnow=new THREE.Color(0.82,0.83,0.81);
+  const cHaze=new THREE.Color(0.55,0.62,0.62);
   const H=[];
   for(let j=0;j<=NR;j++){
     const t=j/NR, r=rNear+(rFar-rNear)*t;
@@ -775,10 +776,14 @@ function makeTerrainMountain(seed,aCenter,layer){
       const a=i/NA*TAU;
       let h=Hmax*(far?0.03:0.08)*_fbm(Math.cos(a)*1.6+seed,Math.sin(a)*1.6-seed);
       for(const p of peaks){
-        const da=Math.atan2(Math.sin(a-p.a),Math.cos(a-p.a));
+        /* 山脊随径向轻微偏斜，避免对称圆滑的孤立包 */
+        const ridgeShift=0.18*((r-p.r)/p.wr);
+        const da=Math.atan2(Math.sin(a-(p.a+ridgeShift)),Math.cos(a-(p.a+ridgeShift)));
         const dr=r-p.r;
         h+=Hmax*p.hh*Math.exp(-((da/p.wa)**2)-((dr/p.wr)**2));
       }
+      /* 中频凹凸：峰面起皱，消掉光滑塑料感 */
+      h+=Hmax*(far?0.06:0.10)*_fbm(Math.cos(a)*3.1+seed,r*0.42-seed);
       /* 连绵基底缓丘：峰脚连续过渡，避免孤立尖包 */
       const baseR=far?25.0:18.5;
       h+=Hmax*(far?0.10:0.10)*Math.exp(-(((r-baseR)/3.4)**2));
@@ -808,9 +813,11 @@ function makeTerrainMountain(seed,aCenter,layer){
       if(far&&f>0.62)c.lerp(cSnow,Math.min(1,(f-0.62)/0.38)*0.9);
       /* 岩面竖向裂隙：沿坡向的明暗沟槽，岩面处沟槽压暗 */
       const crease=_fbm(Math.cos(a)*4.0+seed,t*3.0+seed);
-      c.multiplyScalar(1-rock*0.25*(1-crease));
-      const bn=0.76+0.34*_fbm(Math.cos(a)*3+seed,t*2+seed);
+      c.multiplyScalar(1-rock*0.38*(1-crease));
+      const bn=0.72+0.36*_fbm(Math.cos(a)*3+seed,t*2+seed);
       c.multiplyScalar(bn);
+      /* 空气透视：远山整体向雾色退晕，近山保留深绿 */
+      if(far)c.lerp(cHaze,0.38);
       col.push(c.r,c.g,c.b);
     }
   }
@@ -820,7 +827,7 @@ function makeTerrainMountain(seed,aCenter,layer){
     idx.push(A,C,B,B,C,D);
   }
   /* 实体侧壁：内圈(j=0)、外圈(j=NR)从上表面竖直封到地面 y=0，消除纸片感 */
-  const sideCol=new THREE.Color(0.30,0.24,0.17);
+  const sideCol=far?new THREE.Color(0.42,0.48,0.48):new THREE.Color(0.20,0.22,0.15);
   function addWall(jRow){
     const r=jRow===0?rNear:rFar;
     const botStart=pos.length/3;
@@ -958,18 +965,18 @@ function makeTree3D(h,seed,kind){
 /* 地标角位：相机在 az=1.05 看向原点，正前方世界角位≈4.19；五座都排在前方视野扇区左右错开 */
 const LM_ANGLES=[4.19,3.35,5.05,3.75,4.70];
 function _angDist(a,b){let d=Math.abs(a-b)%TAU;return d>Math.PI?TAU-d:d;}
-const FOL_N=pc(86,44);
+const FOL_N=pc(108,52);
 for(let i=0;i<FOL_N;i++){
   const ang=Math.random()*TAU;
   const layer=Math.random();
   let rad,kind,h,far;
   if(layer<0.20){
     rad=rndRange(12.6,14.6);kind='tree';h=rndRange(3.4,4.4);far=false;
-  }else if(layer<0.58){
-    rad=rndRange(14.5,17.0);kind=Math.random()<0.55?'tree':'bush';
+  }else if(layer<0.55){
+    rad=rndRange(14.5,18.5);kind=Math.random()<0.55?'tree':'bush';
     h=kind==='tree'?rndRange(2.4,3.2):rndRange(1.6,2.2);far=false;
   }else{
-    rad=rndRange(17.0,21.0);kind=Math.random()<0.5?'bush':'grass';h=rndRange(0.9,1.7);far=true;
+    rad=rndRange(17.0,23.0);kind=Math.random()<0.5?'bush':'grass';h=rndRange(0.9,1.7);far=true;
   }
   /* 林窗：地标角位前后让开前排高树与近层灌丛，露出建筑主体，远层草灌保留 */
   const inGap=LM_ANGLES.some(la=>_angDist(ang,la)<0.34);
@@ -1001,6 +1008,23 @@ for(let i=0;i<FOL_N;i++){
   sh.scale.set(sr,1,sr*0.8);
   bgGroup.add(sh);
   bgGroup.add(m);bgFoliage.push(m);
+}
+/* 山脚林带：沿近山前缘铺一排连续矮树，衔接山体与地面，消掉山脚裸坡与上半圈留白 */
+const BELT_N=pc(24,14);
+for(let i=0;i<BELT_N;i++){
+  const ang=4.19+(Math.random()-0.5)*3.1;
+  const rad=rndRange(18.0,21.5);
+  const h=rndRange(1.5,2.3);
+  const px=Math.cos(ang)*rad,pz=Math.sin(ang)*rad;
+  const seed=Math.random()*TAU;
+  const m=makeTree3D(h,seed,'bush');
+  m.position.set(px,0.02,pz);
+  m.userData.is3D=true;m.userData.seed=seed;m.userData.amp=rndRange(0.030,0.052);
+  m.userData.far=true;m.userData.kind='bush';m.userData.op=1;m.userData.ang=ang;
+  m.userData.px=px;m.userData.pz=pz;m.userData.v=rndRange(0.86,1.10);m.userData.warm=rndRange(-0.05,0.07);
+  const sh=new THREE.Mesh(shadowGeo,shadowMat);
+  const sr=h*0.55;sh.position.set(px,0.015,pz);sh.scale.set(sr,1,sr*0.8);
+  bgGroup.add(sh);bgGroup.add(m);bgFoliage.push(m);
 }
 /* 贴地草团不再单独铺片：grass.webp 根部深绿俯视会聚成暗圆斑；地面由 groundMat 季节铺色，灌丛留在主树丛中远景 */
 /* 远景缓移薄雾：柔边雾团在林带后横向漂移，增强空气透视 */
@@ -2648,9 +2672,9 @@ bgGrass.frustumCulled=false;bgGroup.add(bgGrass);
 const rockGeo=new THREE.IcosahedronGeometry(1,1);
 const rockBaseMat=new THREE.MeshLambertMaterial({color:0x7d7a70,fog:false});
 const rockMeshes=[];
-const ROCK_N=pc(22,12);
+const ROCK_N=pc(30,16);
 for(let i=0;i<ROCK_N;i++){
-  const a=Math.random()*TAU,r=Math.sqrt(rndRange(11.5*11.5,20.0*20.0));
+  const a=Math.random()*TAU,r=Math.sqrt(rndRange(11.5*11.5,21.0*21.0));
   const rock=new THREE.Mesh(rockGeo,rockBaseMat.clone());
   const s=rndRange(0.4,0.8);
   rock.scale.set(s*rndRange(1,1.5),s*0.62,s);
