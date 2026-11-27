@@ -737,10 +737,11 @@ function makeTerrainMountain(seed,aCenter,layer){
     H[j]=[];
     for(let i=0;i<=NA;i++){
       const a=i/NA*TAU;
-      /* 角向起伏的主脊线轮廓：主脊 + 高频锯齿褶皱，打破圆滑鼓包 */
-      const ridgeRaw=_fbm(Math.cos(a)*2.2+seed,Math.sin(a)*2.2-seed);
-      const ridgeJag=_fbm(Math.cos(a)*5.5+seed*2.0,Math.sin(a)*5.5-seed*2.0);
-      const ridgeLine=Math.pow(ridgeRaw,1.15)*(0.72+0.28*ridgeJag);
+      /* 超长波大势 + 中频主脊 + 高频锯齿褶皱，山脊连绵有大势、不圆滑鼓包 */
+      const ridgeLow =_fbm(Math.cos(a)*0.8+seed*0.5,Math.sin(a)*0.8-seed*0.5);
+      const ridgeRaw =_fbm(Math.cos(a)*2.2+seed,Math.sin(a)*2.2-seed);
+      const ridgeJag =_fbm(Math.cos(a)*5.5+seed*2.0,Math.sin(a)*5.5-seed*2.0);
+      const ridgeLine=Math.pow(ridgeRaw,1.15)*(0.70+0.30*ridgeJag)+0.18*(ridgeLow-0.5);
       const env=Math.exp(-(((r-rBase)/(far?4.4:3.4))**2));
       let h=Hmax*(0.10+0.90*ridgeLine)*env;
       for(const p of peaks){
@@ -751,14 +752,14 @@ function makeTerrainMountain(seed,aCenter,layer){
         const peakShape=Math.exp(-1.6*(da/p.wa)**2-1.4*(dr/p.wr)**2);
         h+=Hmax*p.hh*peakShape;
       }
-      /* 沟壑下切：沿径向拉长的宽沟槽，加深切成 V 谷，沟内留阴影 */
+      /* V 型沟壑：宽沟槽下切 + 细沟加深，沟内留阴影，打破光滑坡面 */
       const gully=_fbm(Math.cos(a)*3.0+seed,r*0.10-seed);
-      const gCut=_ss(0.38,0.68,gully)*_ss(0.12,0.5,h/Hmax);
-      h-=Hmax*0.48*gCut;
+      const gCut=_ss(0.36,0.66,gully)*_ss(0.10,0.5,h/Hmax);
+      h-=Hmax*(far?0.34:0.52)*gCut;
       /* 坡面中频凹凸：加大起伏，消掉光滑塑料感 */
       h+=Hmax*(far?0.07:0.14)*(_fbm(Math.cos(a)*3.4+seed,r*0.5-seed)-0.5);
       /* 坡脚连续缓丘：峰脚过渡自然，避免孤立尖包；带宽加大铺成实体丘体 */
-      h+=Hmax*(far?0.09:0.09)*Math.exp(-(((r-(rBase-3.6))/3.4)**2));
+      h+=Hmax*(far?0.09:0.11)*Math.exp(-(((r-(rBase-3.6))/3.4)**2));
       const dAng=Math.abs(Math.atan2(Math.sin(a-aCenter),Math.cos(a-aCenter)));
       const wAng=1-_ss(halfAng-0.30,halfAng,dAng);
       const wR=_ss(rNear,rNear+4.6,r)*(1-_ss(rFar-4.6,rFar,r));
@@ -786,10 +787,18 @@ function makeTerrainMountain(seed,aCenter,layer){
       /* 岩面竖向裂隙：沿坡向的明暗沟槽，岩面处沟槽压暗 */
       const crease=_fbm(Math.cos(a)*4.0+seed,t*3.0+seed);
       c.multiplyScalar(1-rock*0.38*(1-crease));
-      const bn=0.72+0.36*_fbm(Math.cos(a)*3+seed,t*2+seed);
-      c.multiplyScalar(bn);
-      /* 空气透视：远山整体向雾色退晕，近山保留深绿 */
-      if(far)c.lerp(cHaze,0.38);
+      /* 坡向受光：对齐主光水平方位，阳坡提亮、阴坡压暗 */
+      const gR=jr, gA=ja/(TAU/NA*r), gl=Math.hypot(gR,gA)||1e-4;
+      const facing=Math.max(-1,Math.min(1,(-gR/gl)*0.974+(-gA/gl)*(-0.226)));
+      const bn=0.70+0.30*_fbm(Math.cos(a)*3+seed,t*2+seed)+0.13*facing;
+      c.multiplyScalar(Math.max(0.55,bn));
+      /* 低海拔缓坡草皮略亮，坡脚不显枯 */
+      if(f<0.4&&slope<0.5)c.multiplyScalar(1.05);
+      /* 空气透视：远山按海拔分层退晕——坡脚薄、山腰厚、山顶清；近山保留深绿 */
+      if(far){
+        const hazeAlt=0.16+0.30*Math.sin(Math.PI*Math.min(1,f));
+        c.lerp(cHaze,hazeAlt);
+      }
       col.push(c.r,c.g,c.b);
     }
   }
