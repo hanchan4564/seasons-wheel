@@ -148,11 +148,16 @@
     font-size:12px;letter-spacing:.12em;padding:8px 14px;cursor:pointer}
   #tMenu button:hover{color:var(--ink);background:rgba(216,184,120,.07)}
   #tMenu button.on{color:var(--gold)}
+  #ecoReset{position:fixed;top:144px;right:40px;z-index:5;appearance:none;background:rgba(8,10,14,.52);
+    border:1px solid rgba(216,184,120,.22);color:var(--dim);font-size:11px;letter-spacing:.12em;
+    padding:7px 12px;border-radius:2px;cursor:pointer;opacity:.85;user-select:none}
+  #ecoReset:hover{color:var(--gold);opacity:1}
   #paused{top:96px}
   @media (max-width:640px){
     #music{top:18px;right:16px;gap:9px;padding:7px 9px}
     #music .meta{display:none}#music .vol{display:none}#music .sep{display:none}
     #paused{top:66px;right:18px}
+    #ecoReset{top:144px;right:16px}
   }
   @media (max-width:640px){
     #quality{top:70px;right:16px}#theme{top:96px;right:16px}
@@ -262,6 +267,7 @@
     <button type="button" data-t="1">山河四季</button>
   </div>
 </div>
+<button id="ecoReset" type="button" title="清空地块肥力、树龄与年份进度，回到初始田园">重置田园</button>
 <audio id="mAudio" preload="none"></audio>
 <div id="loader"><div class="ring"></div><p>星盘转动中</p></div>
 <div id="fallback">三维引擎加载失败<br>请检查网络后刷新页面</div>
@@ -1470,6 +1476,101 @@ placeLandmark(buildStiltHouse(),2,LM_ANGLES[2],16.0);
 placeLandmark(buildTemple(),3,LM_ANGLES[3],14.4);
 placeLandmark(buildRuin(),4,LM_ANGLES[4],14.4);
 /* ===== 外环分区骨架：宅院·菜畦·果林·林缘·后山·水塘 六区段，篱笆/树行/土路/岸石过渡 ===== */
+/* ===== M2 生态模拟层：地块状态机 / 树龄年周期 / 丰茂度；数据可序列化并本地存档跨年延续 ===== */
+const ECO_KEY='sq_eco_v1';
+let _savedAngle=null;
+const Eco={
+  year:0,richness:0,plots:[],trees:[],_saveT:0,_lastSeason:0,
+  load(){
+    let raw=null;try{raw=JSON.parse(localStorage.getItem(ECO_KEY)||'null');}catch(e){}
+    if(raw&&typeof raw==='object'){
+      this.year=raw.year||0;this.richness=raw.richness||0;
+      this.plots=Array.isArray(raw.plots)?raw.plots:[];
+      this.trees=Array.isArray(raw.trees)?raw.trees:[];
+      if(typeof raw.totalAngle==='number')_savedAngle=raw.totalAngle;
+    }
+  },
+  save(){
+    try{
+      localStorage.setItem(ECO_KEY,JSON.stringify({
+        totalAngle:totalAngle,year:this.year,richness:this.richness,
+        plots:this.plots.map(p=>({id:p.id,ang:p.ang,rad:p.rad,fert:p.fert,crop:p.crop,stage:p.stage,rest:p.rest,seed:p.seed})),
+        trees:this.trees.map(t=>({id:t.id,age:t.age,seed:t.seed}))
+      }));
+    }catch(e){}
+  },
+  reset(){try{localStorage.removeItem(ECO_KEY);}catch(e){}this.plots=[];this.trees=[];this.year=0;this.richness=0;},
+  addPlot(ang,rad,seed){
+    let p=this.plots.find(x=>x.seed===seed);
+    if(!p){
+      const r=_mulberry((seed*1e5)|0);
+      p={id:this.plots.length,ang,rad,fert:0.45+r()*0.3,crop:0,stage:0,rest:0,seed,group:null};
+      this.plots.push(p);
+    }
+    p.ang=ang;p.rad=rad;p.group=null;
+    return p;
+  },
+  addTree(seed){
+    let t=this.trees.find(x=>x.seed===seed);
+    if(!t){t={id:this.trees.length,age:1,seed,mesh:null,baseScale:1};this.trees.push(t);}
+    t.mesh=null;t.baseScale=1;
+    return t;
+  },
+  /* 季节→地块阶段：1春播芽 2夏长 3秋熟 4冬休；stage 0播种 1发芽 2生长 3成熟 4休耕 */
+  _stageFor(season,p){
+    if(season===1)return p.fert>0.35?1:0;
+    if(season===2)return 2;
+    if(season===3)return 3;
+    return 4;
+  },
+  update(rev,season,dt){
+    this.year=rev;
+    this.richness=Math.min(1,rev/5);
+    /* 肥力按季节切换步进：休耕养地回升，生长季被消耗缓慢退化（M3 劳作回写后由 worked 加速） */
+    if(season!==this._lastSeason){
+      this._lastSeason=season;
+      for(const p of this.plots){
+        if(p.stage===4)p.fert=Math.min(1,p.fert+0.05);
+        else p.fert=Math.max(0.15,p.fert-0.02);
+      }
+    }
+    spHeadMat.color.copy(leafPal[Math.max(0,Math.min(3,season-1))]);
+    for(const p of this.plots){
+      p.crop=(rev+p.id)%4;
+      p.stage=this._stageFor(season,p);
+      if(p.group){
+        const hMap=[0.35,0.60,0.85,1.0,0.22];
+        const f=0.78+0.4*p.fert;
+        p.group.scale.set(1,Math.max(0.12,hMap[p.stage]*f),1);
+        p.group.visible=p.stage!==4||p.fert>0.3;
+      }
+    }
+    for(const t of this.trees){
+      t.age=Math.min(5,1+rev);
+      const ageF=t.age/5;
+      if(t.mesh)t.mesh.scale.setScalar(t.baseScale*(0.82+0.18*ageF));
+    }
+  }
+};
+Eco.load();
+/* 作物苗几何：单位高茎 + 冠球，株高由地块阶段拉伸 */
+const spStemGeo=new THREE.CylinderGeometry(0.018,0.024,1,5);
+const spHeadGeo=new THREE.SphereGeometry(1,6,5);
+const spHeadMat=new THREE.MeshLambertMaterial({color:0x2c521e,fog:false});
+function makeSprout(seed){
+  const g=new THREE.Group();
+  const r=_mulberry((seed*1e4)|0);
+  for(let k=0;k<3;k++){
+    const h=0.42+r()*0.22;
+    const stem=new THREE.Mesh(spStemGeo,zoneReedMat);
+    const x=(k-1)*0.12,z=(r()-0.5)*0.12;
+    stem.scale.y=h;stem.position.set(x,h/2,z);
+    const head=new THREE.Mesh(spHeadGeo,spHeadMat);
+    head.position.set(x,h+0.05,z);head.scale.setScalar(0.09+r()*0.05);
+    g.add(stem,head);
+  }
+  return g;
+}
 const ZONES=[
   {key:'yard',   c:3.66, label:'宅院'},
   {key:'field',  c:2.61, label:'菜畦'},
@@ -1551,8 +1652,12 @@ function buildReed(){
       const ridge=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.16,0.34),zoneSoilMat);
       ridge.position.set(p.x,0.08,p.z);ridge.rotation.y=-(a+Math.PI/2);ridge.receiveShadow=true;
       bgGroup.add(ridge);
+      const seed=ri*10+k+1;
+      const plot=Eco.addPlot(a,rr,seed);
+      const sprout=makeSprout(seed);
+      sprout.position.set(p.x,0.05,p.z);
+      bgGroup.add(sprout);plot.group=sprout;
     }
-    zoneTree(c+off,rr+0.55,0.7,'bush',false);
   }
   const path=new THREE.Mesh(new THREE.PlaneGeometry(2.8,0.5).rotateX(-Math.PI/2),zonePathMat);
   const pp=_zp(c,13.8);path.position.set(pp.x,0.018,pp.z);path.rotation.y=-(c+Math.PI/2);bgGroup.add(path);
@@ -1562,7 +1667,8 @@ function buildReed(){
   const c=1.57;const angs=[-0.42,-0.21,0,0.21,0.42];
   for(let i=0;i<angs.length;i++){
     const rr=i%2?14.0:15.4;
-    zoneTree(c+angs[i],rr,rndRange(1.9,2.4),'tree',false);
+    const m=zoneTree(c+angs[i],rr,rndRange(1.9,2.4),'tree',false);
+    const t=Eco.addTree(100+i);t.mesh=m;t.baseScale=m.scale.x||1;
   }
 })();
 /* 宅院：院前篱笆两段 + 柴堆 */
@@ -1592,11 +1698,17 @@ function buildReed(){
 /* 后山：坡脚剪影密林 */
 (function backZone(){
   const c=0.52;
-  for(let i=0;i<3;i++)zoneTree(c+(i-1)*0.30,18.2,rndRange(2.0,2.6),'bush',true);
+  for(let i=0;i<3;i++){
+    const m=zoneTree(c+(i-1)*0.30,18.2,rndRange(2.0,2.6),'bush',true);
+    const t=Eco.addTree(200+i);t.mesh=m;t.baseScale=m.scale.x||1;
+  }
 })();
 /* 区段交界树行：六段分界各立一株小乔木 */
 const ZONE_BORDERS=[3.14,2.09,1.05,0.00,5.24,4.18];
-for(const ba of ZONE_BORDERS)zoneTree(ba,16.5,rndRange(1.5,1.9),'tree',false);
+ZONE_BORDERS.forEach((ba,i)=>{
+  const m=zoneTree(ba,16.5,rndRange(1.5,1.9),'tree',false);
+  const t=Eco.addTree(300+i);t.mesh=m;t.baseScale=m.scale.x||1;
+});
 /* 背景 3D 动物：去掉 Sprite 贴纸，实体模型/程序化形体并带动作（狐骨骼动画 · 鸟虫扇翅） */
 const bgAnimals=[];
 const animalLoader=new THREE.GLTFLoader();
@@ -4299,6 +4411,7 @@ function spawnPrint(x,z,heading){
 
 /* ===== 季节推进与主循环 ===== */
 let totalAngle=0.12;
+if(_savedAngle!==null)totalAngle=Math.max(0.12,_savedAngle);
 let simTime=0;
 let _skipIntro=false;try{_skipIntro=sessionStorage.getItem('sq_skipintro')==='1';sessionStorage.removeItem('sq_skipintro');}catch(e){}
 let introT=_skipIntro?1:0;   // 开场推镜进度 0→1
@@ -4634,6 +4747,8 @@ function animate(){
   const f=pAngle/TAU;
   const A=seasonA(rev),B=seasonB(rev);
   curSeasonIdx=f>0.5?B:A;
+  Eco.update(rev,curSeasonIdx,sdt);
+  Eco._saveT+=sdt;if(Eco._saveT>2.5){Eco._saveT=0;Eco.save();}
   const sA=SEASONS[A],sB=SEASONS[B];
   if(rev!==wRev){if(wRev>=0)triggerSweep(A);wRev=rev;if(Math.random()<WEATHER_P)startWeather(B);}
 
@@ -5455,6 +5570,8 @@ function _onResize(){
 }
 window.addEventListener('resize',_onResize);
 window.addEventListener('orientationchange',()=>setTimeout(_onResize,150));
+window.addEventListener('beforeunload',()=>Eco.save());
+window.addEventListener('pagehide',()=>Eco.save());
 
 /* 画质档位：默认按机型自动，可手动流畅/高清/超清/4K，选择记忆本地 */
 const QMAP={low:1.0,mid:1.5,high:2.5,'4k':Math.min(devicePixelRatio||1,3)};
@@ -5492,6 +5609,13 @@ function applyThemeUI(t){
 tBtn.addEventListener('click',e=>{e.stopPropagation();tBox.classList.toggle('open');});
 tMenu.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;applyThemeUI(b.dataset.t);tBox.classList.remove('open');});
 document.addEventListener('pointerdown',e=>{if(!tBox.contains(e.target))tBox.classList.remove('open');});
+const ecoResetBtn=document.getElementById('ecoReset');
+if(ecoResetBtn)ecoResetBtn.addEventListener('click',()=>{
+  if(confirm('确定清空田园进度？地块肥力、树龄与年份将回到初始状态。')){
+    Eco.reset();
+    location.reload();
+  }
+});
 let savedTheme=0;try{savedTheme=localStorage.getItem('sq_theme')||'0';}catch(e){}
 let __qm=location.search.match(/[?&]theme=(\d)/); if(__qm) savedTheme=__qm[1];
 applyThemeUI(savedTheme);
