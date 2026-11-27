@@ -718,12 +718,22 @@ function makeTerrainMountain(seed,aCenter,layer){
     for(const o of aOff)peaks.push({a:aCenter+o,r:rndRange(23.0,26.0),wa:rndRange(0.09,0.13),wr:rndRange(0.6,0.85),hh:rndRange(0.62,0.74)});
     const sOff=[-0.55,0.50,1.42];
     for(const o of sOff)peaks.push({a:aCenter+o,r:rndRange(26.0,27.0),wa:rndRange(0.06,0.08),wr:rndRange(0.4,0.55),hh:rndRange(0.50,0.58)});
+    /* 前丘组：远山近侧低宽缓丘，加厚前坡 */
+    const fOff=[-0.80,0.30,0.95];
+    for(const o of fOff)peaks.push({a:aCenter+o,r:rndRange(20.5,21.5),wa:rndRange(0.12,0.16),wr:rndRange(1.0,1.2),hh:rndRange(0.32,0.40)});
   }else{
-    peaks.push({a:aCenter-0.85,r:18.0,wa:0.13,wr:0.62,hh:0.92});
-    peaks.push({a:aCenter-0.30,r:18.6,wa:0.12,wr:0.58,hh:0.78});
-    peaks.push({a:aCenter+0.18,r:18.2,wa:0.14,wr:0.70,hh:0.86});
-    peaks.push({a:aCenter+0.62,r:18.7,wa:0.11,wr:0.55,hh:0.80});
-    peaks.push({a:aCenter+1.02,r:18.1,wa:0.13,wr:0.60,hh:0.74});
+    /* 主峰组：径向居中的高窄峰 */
+    peaks.push({a:aCenter-0.85,r:18.6,wa:0.13,wr:0.70,hh:0.92});
+    peaks.push({a:aCenter-0.30,r:19.2,wa:0.12,wr:0.62,hh:0.78});
+    peaks.push({a:aCenter+0.18,r:18.9,wa:0.14,wr:0.72,hh:0.86});
+    peaks.push({a:aCenter+0.62,r:19.4,wa:0.11,wr:0.58,hh:0.80});
+    peaks.push({a:aCenter+1.02,r:18.8,wa:0.13,wr:0.64,hh:0.74});
+    /* 前丘组：近侧低宽缓丘，铺厚山体前坡 */
+    peaks.push({a:aCenter-0.55,r:15.6,wa:0.16,wr:1.10,hh:0.42});
+    peaks.push({a:aCenter+0.45,r:16.2,wa:0.15,wr:1.00,hh:0.36});
+    /* 后脊组：远侧次峰，拉出前后纵深 */
+    peaks.push({a:aCenter-0.15,r:21.8,wa:0.13,wr:0.90,hh:0.55});
+    peaks.push({a:aCenter+0.85,r:22.4,wa:0.12,wr:0.80,hh:0.48});
   }
   /* 顶点色只存灰阶明暗，季节色相由材质 color 按四季色板染 */
   const cFoot=new THREE.Color(0.74,0.74,0.74);
@@ -742,8 +752,13 @@ function makeTerrainMountain(seed,aCenter,layer){
       const ridgeRaw =_fbm(Math.cos(a)*2.2+seed,Math.sin(a)*2.2-seed);
       const ridgeJag =_fbm(Math.cos(a)*5.5+seed*2.0,Math.sin(a)*5.5-seed*2.0);
       const ridgeLine=Math.pow(ridgeRaw,1.15)*(0.70+0.30*ridgeJag)+0.18*(ridgeLow-0.5);
-      const env=Math.exp(-(((r-rBase)/(far?4.4:3.4))**2));
-      let h=Hmax*(0.10+0.90*ridgeLine)*env;
+      /* 径向多层剖面：前丘—主峰—后脊叠加，山体前后有厚度，不显薄片 */
+      const wMain=far?5.4:4.4;
+      const main=Math.exp(-(((r-rBase)/wMain)**2));
+      const fore=Math.exp(-(((r-(rBase-4.4))/(far?3.6:3.0))**2));
+      const back=Math.exp(-(((r-(rBase+4.0))/(far?3.8:3.2))**2));
+      const ridgeProfile=(main+0.42*fore+0.34*back)*0.92;
+      let h=Hmax*(0.10+0.90*ridgeLine)*ridgeProfile;
       for(const p of peaks){
         /* 山脊随径向轻微偏斜，避免对称圆滑的孤立包；峰形锐化收尖 */
         const ridgeShift=0.18*((r-p.r)/p.wr);
@@ -757,12 +772,12 @@ function makeTerrainMountain(seed,aCenter,layer){
       const gCut=_ss(0.36,0.66,gully)*_ss(0.10,0.5,h/Hmax);
       h-=Hmax*(far?0.34:0.52)*gCut;
       /* 坡面中频凹凸：加大起伏，消掉光滑塑料感 */
-      h+=Hmax*(far?0.07:0.14)*(_fbm(Math.cos(a)*3.4+seed,r*0.5-seed)-0.5);
-      /* 坡脚连续缓丘：峰脚过渡自然，避免孤立尖包；带宽加大铺成实体丘体 */
-      h+=Hmax*(far?0.09:0.11)*Math.exp(-(((r-(rBase-3.6))/3.4)**2));
+      h+=Hmax*(far?0.08:0.16)*(_fbm(Math.cos(a)*3.4+seed,r*0.7-seed)-0.5);
+      /* 坡脚连续缓丘：峰脚过渡自然，带宽加大铺成实体丘体接地 */
+      h+=Hmax*(far?0.10:0.13)*Math.exp(-(((r-(rBase-5.2))/4.2)**2));
       const dAng=Math.abs(Math.atan2(Math.sin(a-aCenter),Math.cos(a-aCenter)));
       const wAng=1-_ss(halfAng-0.30,halfAng,dAng);
-      const wR=_ss(rNear,rNear+4.6,r)*(1-_ss(rFar-4.6,rFar,r));
+      const wR=_ss(rNear,rNear+6.0,r)*(1-_ss(rFar-5.0,rFar,r));
       H[j].push(Math.max(0,h*wAng*wR));
     }
   }
@@ -811,10 +826,12 @@ function makeTerrainMountain(seed,aCenter,layer){
   const sideCol=far?new THREE.Color(0.38,0.40,0.38):new THREE.Color(0.30,0.24,0.17);
   function addWall(jRow){
     const r=jRow===0?rNear:rFar;
+    /* 底圈斜向收放：内圈向外铺成坡脚裙边、外圈向内收接地，避免竖直薄片墙 */
+    const botR=jRow===0?rNear+1.8:rFar-1.8;
     const botStart=pos.length/3;
     for(let i=0;i<=NA;i++){
       const a=i/NA*TAU;
-      pos.push(Math.cos(a)*r,0,Math.sin(a)*r);
+      pos.push(Math.cos(a)*botR,0,Math.sin(a)*botR);
       col.push(sideCol.r,sideCol.g,sideCol.b);
     }
     for(let i=0;i<NA;i++){
