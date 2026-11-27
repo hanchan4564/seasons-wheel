@@ -747,9 +747,9 @@ function makeTerrainMountain(seed,aCenter,layer){
   const rnd=_mulberry((seed*1000)|0);
   const far=layer==='far';
   const NA=far?144:120, NR=far?48:36;
-  const rNear=far?19.0:14.0, rFar=far?30.0:22.5;
-  const Hmax=far?10.2:6.0, halfAng=far?1.55:1.75;
-  const rBase=far?25.0:18.3;
+  const rNear=far?17.0:12.5, rFar=far?33.5:26.0;
+  const Hmax=far?11.0:7.2, halfAng=far?1.55:1.75;
+  const rBase=far?25.5:19.0;
   /* 侧峰：主脊两侧错开的窄峰，打破对称孤立包 */
   const peaks=[];
   if(far){
@@ -780,7 +780,7 @@ function makeTerrainMountain(seed,aCenter,layer){
       const ridgeRaw=_fbm(Math.cos(a)*2.2+seed,Math.sin(a)*2.2-seed);
       const ridgeJag=_fbm(Math.cos(a)*5.5+seed*2.0,Math.sin(a)*5.5-seed*2.0);
       const ridgeLine=Math.pow(ridgeRaw,1.15)*(0.72+0.28*ridgeJag);
-      const env=Math.exp(-(((r-rBase)/(far?3.6:2.6))**2));
+      const env=Math.exp(-(((r-rBase)/(far?4.4:3.4))**2));
       let h=Hmax*(0.10+0.90*ridgeLine)*env;
       for(const p of peaks){
         /* 山脊随径向轻微偏斜，避免对称圆滑的孤立包；峰形锐化收尖 */
@@ -796,11 +796,11 @@ function makeTerrainMountain(seed,aCenter,layer){
       h-=Hmax*0.48*gCut;
       /* 坡面中频凹凸：加大起伏，消掉光滑塑料感 */
       h+=Hmax*(far?0.07:0.14)*(_fbm(Math.cos(a)*3.4+seed,r*0.5-seed)-0.5);
-      /* 坡脚连续缓丘：峰脚过渡自然，避免孤立尖包 */
-      h+=Hmax*(far?0.08:0.06)*Math.exp(-(((r-(rBase-3.2))/2.6)**2));
+      /* 坡脚连续缓丘：峰脚过渡自然，避免孤立尖包；带宽加大铺成实体丘体 */
+      h+=Hmax*(far?0.09:0.09)*Math.exp(-(((r-(rBase-3.6))/3.4)**2));
       const dAng=Math.abs(Math.atan2(Math.sin(a-aCenter),Math.cos(a-aCenter)));
       const wAng=1-_ss(halfAng-0.30,halfAng,dAng);
-      const wR=_ss(rNear,rNear+3.8,r)*(1-_ss(rFar-3.8,rFar,r));
+      const wR=_ss(rNear,rNear+4.6,r)*(1-_ss(rFar-4.6,rFar,r));
       H[j].push(Math.max(0,h*wAng*wR));
     }
   }
@@ -838,7 +838,7 @@ function makeTerrainMountain(seed,aCenter,layer){
     idx.push(A,C,B,B,C,D);
   }
   /* 实体侧壁：内圈(j=0)、外圈(j=NR)从上表面竖直封到地面 y=0，消除纸片感 */
-  const sideCol=far?new THREE.Color(0.42,0.48,0.48):new THREE.Color(0.20,0.22,0.15);
+  const sideCol=far?new THREE.Color(0.38,0.40,0.38):new THREE.Color(0.30,0.24,0.17);
   function addWall(jRow){
     const r=jRow===0?rNear:rFar;
     const botStart=pos.length/3;
@@ -999,7 +999,7 @@ function makeTree3D(h,seed,kind){
   trunk.position.y=trunkH/2;
   trunk.rotation.z=Math.cos(seed)*lean;trunk.rotation.x=-Math.sin(seed)*lean;
   grp.add(trunk);
-  const br=4+Math.floor(rng()*3);
+  const br=5+Math.floor(rng()*3);
   for(let b=0;b<br;b++){
     const ba=seed+b*TAU/br,bl=h*(0.26+rng()*0.08);
     const branch=new THREE.Mesh(new THREE.CylinderGeometry(h*0.011,h*0.022,bl,5),trunkMat);
@@ -1011,18 +1011,18 @@ function makeTree3D(h,seed,kind){
   const cy=trunkH+h*0.16;
   const innerGeo=rng()<0.5?innerGeoA:innerGeoB;
   const centers=[{x:0,y:cy,z:0,r:0.85,core:true}];
-  const cl=4+Math.floor(rng()*3);
+  const cl=6+Math.floor(rng()*4);
   for(let k=0;k<cl;k++){
-    const ca=rng()*TAU,cr=rng()*rx*0.50;
-    const offY=(rng()-0.30)*ry*0.60;
-    const cs=0.40+rng()*0.32;
+    const ca=rng()*TAU,cr=rng()*rx*0.55;
+    const offY=(rng()-0.32)*ry*0.72;
+    const cs=0.34+rng()*0.38;
     centers.push({x:Math.cos(ca)*cr,y:cy+offY,z:Math.sin(ca)*cr,r:cs,core:false});
   }
   /* 下垂侧团：冠缘留破洞，打破规整圆顶轮廓 */
-  const droop=1+Math.floor(rng()*2);
+  const droop=2+Math.floor(rng()*2);
   for(let k=0;k<droop;k++){
     const da=rng()*TAU;
-    centers.push({x:Math.cos(da)*rx*0.55,y:cy-ry*0.35,z:Math.sin(da)*rx*0.55,r:0.36+rng()*0.16,core:false});
+    centers.push({x:Math.cos(da)*rx*0.58,y:cy-ry*0.38,z:Math.sin(da)*rx*0.58,r:0.30+rng()*0.18,core:false});
   }
   for(const c of centers){
     const lump=new THREE.Mesh(innerGeo,c.core?innerMat:innerMat2);
@@ -1302,62 +1302,108 @@ function placeLandmark(grp,season,ang,rad){
   grp.userData={season,ang,rad};
   bgGroup.add(grp);bgLandmarks.push(grp);
 }
-/* 春·密林石砌古堡尖塔 + 雉堞拱门藤蔓（参考图2） */
+/* 春·密林石砌古堡：主塔楼 + 雉堞垛口 + 两侧副楼 + 连接廊 + 拱门藤蔓（参考图2） */
 function buildCastle(){
   const g=new THREE.Group();
-  _lmBox(1.4,4.0,1.4,LM.stone,0,2.0,0,g);
-  _lmCone(1.0,1.6,4,LM.roof,0,4.8,0,g);
+  /* 主塔楼石墙 */
+  _lmBox(1.4,4.2,1.4,LM.stone,0,2.1,0,g);
+  /* 主塔分层腰线 */
+  _lmBox(1.5,0.14,1.5,LM.stoneDark,0,2.9,0,g);
+  /* 塔顶雉堞：前后两排垛口 */
   for(let c=-1;c<=1;c++){
-    _lmBox(0.24,0.30,0.24,LM.stone,c*0.45,4.15,0.5,g);
-    _lmBox(0.24,0.30,0.24,LM.stone,c*0.45,4.15,-0.5,g);
+    _lmBox(0.26,0.34,0.26,LM.stone,c*0.46,4.35,0.55,g);
+    _lmBox(0.26,0.34,0.26,LM.stone,c*0.46,4.35,-0.55,g);
   }
-  _lmBox(1.1,3.0,1.1,LM.stone,-1.8,1.5,0,g);
-  _lmCone(0.8,1.3,4,LM.roof,-1.8,3.65,0,g);
-  _lmBox(1.0,2.3,1.0,LM.stone,1.7,1.15,0,g);
-  _lmCone(0.72,1.1,4,LM.roof,1.7,2.85,0,g);
-  _lmBox(0.28,1.8,0.28,LM.stoneDark,-0.75,0.9,0.5,g);
-  _lmBox(0.28,1.8,0.28,LM.stoneDark,0.75,0.9,0.5,g);
-  _lmBox(1.8,0.3,0.28,LM.stoneDark,0,1.8,0.5,g);
-  _lmBox(0.6,1.2,0.12,LM.arch,0,0.6,0.66,g);
-  _lmSph(0.34,LM.leaf,-0.6,2.6,0.62,g);
-  _lmSph(0.30,LM.leaf,0.55,2.0,0.62,g);
-  _lmSph(0.26,LM.leaf,1.6,1.4,0.5,g);
+  _lmCone(1.0,1.5,4,LM.roof,0,5.1,0,g);
+  /* 左副楼 + 双坡顶 */
+  _lmBox(1.15,2.6,1.15,LM.stone,-1.95,1.3,0,g);
+  const cl1=_lmBox(0.72,0.09,1.35,LM.roof,-2.12,2.78,0,g);cl1.rotation.z=0.42;
+  const cl2=_lmBox(0.72,0.09,1.35,LM.roof,-1.78,2.78,0,g);cl2.rotation.z=-0.42;
+  /* 右副楼 + 双坡顶 */
+  _lmBox(1.05,2.0,1.05,LM.stone,1.85,1.0,0,g);
+  const cr1=_lmBox(0.66,0.09,1.25,LM.roof,1.68,2.18,0,g);cr1.rotation.z=0.42;
+  const cr2=_lmBox(0.66,0.09,1.25,LM.roof,2.02,2.18,0,g);cr2.rotation.z=-0.42;
+  /* 连接廊：一层窄石墙连主副楼 */
+  _lmBox(0.8,1.5,0.5,LM.stoneDark,-1.0,0.75,0,g);
+  _lmBox(0.7,1.2,0.5,LM.stoneDark,1.0,0.6,0,g);
+  /* 拱门 + 主塔窄窗 */
+  _lmBox(0.62,1.3,0.12,LM.arch,0,0.65,0.72,g);
+  _lmBox(0.22,0.5,0.08,LM.arch,-0.35,3.3,0.71,g);
+  _lmBox(0.22,0.5,0.08,LM.arch,0.35,3.3,0.71,g);
+  _lmBox(0.22,0.4,0.08,LM.arch,-1.95,1.6,0.59,g);
+  /* 攀藤叶团 */
+  _lmSph(0.34,LM.leaf,-0.7,2.6,0.62,g);
+  _lmSph(0.30,LM.leaf,0.55,1.9,0.62,g);
+  _lmSph(0.26,LM.leaf,1.7,1.3,0.5,g);
   return g;
 }
-/* 夏·岩壁竹林小屋 + 石阶（参考图3） */
+/* 夏·岩壁竹林旧木屋 + 石阶石径（参考图3） */
 function buildBambooHouse(){
   const g=new THREE.Group();
-  _lmBox(1.4,1.2,1.2,LM.plaster,0,0.6,0,g);
-  _lmCone(1.05,0.7,4,LM.roof,0,1.55,0,g);
-  const bx=[-1.3,-1.6,-1.0,1.3,1.6,1.1,-1.4];
+  /* 厚土墙屋身 */
+  _lmBox(1.5,1.25,1.25,LM.plaster,0,0.62,0,g);
+  /* 土墙前木立柱分格 */
+  for(const px of [-0.6,0,0.6])_lmBox(0.08,1.25,0.08,LM.wood,px,0.62,0.64,g);
+  /* 双坡茅草顶 */
+  const ba=Math.atan2(0.6,0.75);
+  const h1=_lmBox(0.8,0.10,1.45,LM.roof,-0.38,1.55,0,g);h1.rotation.z=ba;
+  const h2=_lmBox(0.8,0.10,1.45,LM.roof,0.38,1.55,0,g);h2.rotation.z=-ba;
+  /* 门 + 小窗 */
+  _lmBox(0.42,0.78,0.08,LM.arch,0,0.39,0.66,g);
+  _lmBox(0.3,0.3,0.06,LM.arch,-0.5,0.8,0.65,g);
+  /* 石阶三级通到门口 */
+  for(let s=0;s<3;s++)_lmBox(1.0,0.16,0.5,LM.stone,0,0.08+s*0.16,0.9+s*0.45,g);
+  /* 竹丛：屋旁两侧密竹，高低错落 */
+  const bx=[-1.4,-1.7,-1.1,-1.5,1.4,1.7,1.1,1.5,-1.9];
   for(let i=0;i<bx.length;i++){
-    const h=3.0+((i*37)%10)/10*0.9;
-    const bz=-0.5+(i%2*0.3);
+    const h=2.8+((i*37)%10)/10*1.1;
+    const bz=-0.5+(i%2*0.35);
     const c=_lmCyl(0.05,0.06,h,5,LM.leaf,bx[i],h/2,bz,g);
     c.rotation.z=(bx[i]>0?-1:1)*0.06;
-    _lmSph(0.17,LM.leaf,bx[i],h+0.05,bz,g);
+    _lmSph(0.16,LM.leaf,bx[i],h+0.05,bz,g);
   }
-  for(let s=0;s<3;s++)_lmBox(1.0,0.16,0.5,LM.stone,0,0.08+s*0.16,0.9+s*0.45,g);
+  /* 屋旁岩石 */
+  _lmSph(0.30,LM.stone,-1.0,0.15,0.8,g);
+  _lmSph(0.22,LM.stoneDark,1.0,0.12,0.85,g);
   return g;
 }
-/* 夏·水上架空木屋 + 栈桥 + 水车 + 棕榈（参考图4） */
+/* 夏·水上架空木屋群落 + 叠层挑楼 + 栈桥栏杆 + 水车 + 棕榈（参考图2） */
 function buildStiltHouse(){
   const g=new THREE.Group();
-  for(const px of [-0.7,0.7])for(const pz of [-0.6,0.6])
-    _lmCyl(0.09,0.10,1.5,6,LM.wood,px,0.75,pz,g);
-  _lmBox(1.7,0.16,1.5,LM.wood,0,1.5,0,g);
-  _lmBox(1.2,1.0,1.1,LM.plaster,0,2.08,0,g);
-  _lmCone(0.95,0.6,4,LM.roof,0,2.88,0,g);
-  for(let d=0;d<3;d++)_lmBox(0.5,0.10,1.0,LM.wood,0,1.45,1.0+d*0.95,g);
-  const wheel=_lmCyl(0.55,0.55,0.10,10,LM.wood,1.1,1.1,-0.3,g);
+  /* 架空立柱群：前后两排，把整座楼抬离地面 */
+  for(const px of [-0.72,0.72])for(const pz of [-0.62,0.62])
+    _lmCyl(0.09,0.11,1.35,6,LM.wood,px,0.67,pz,g);
+  /* 架空平台地板 */
+  _lmBox(1.75,0.16,1.55,LM.wood,0,1.35,0,g);
+  /* 一层木墙 */
+  _lmBox(1.30,1.02,1.10,LM.plaster,0,1.90,0,g);
+  /* 一层前墙木立柱分格 */
+  for(const px of [-0.55,0,0.55])_lmBox(0.07,1.02,0.07,LM.wood,px,1.90,0.56,g);
+  /* 二层悬挑楼阁：向前探出，前后退进 */
+  _lmBox(1.10,0.80,0.90,LM.wood,0,2.86,0.10,g);
+  /* 二层正面小窗 */
+  _lmBox(0.30,0.34,0.06,LM.arch,-0.32,2.86,0.57,g);
+  _lmBox(0.30,0.34,0.06,LM.arch,0.32,2.86,0.57,g);
+  /* 双坡屋顶：两片斜板，坡向左右，前后挑檐 */
+  const roofA=Math.atan2(0.42,0.62);
+  const r1=_lmBox(0.66,0.09,1.18,LM.roof,-0.33,3.30,0.10,g);r1.rotation.z=roofA;
+  const r2=_lmBox(0.66,0.09,1.18,LM.roof,0.33,3.30,0.10,g);r2.rotation.z=-roofA;
+  /* 一层外廊栏杆：正面两根立柱 + 一道横栏 */
+  for(const px of [-0.72,0.72])_lmBox(0.07,0.55,0.07,LM.wood,px,1.62,0.78,g);
+  _lmBox(1.5,0.07,0.07,LM.wood,0,1.86,0.78,g);
+  /* 栈桥：向外三级板道，两侧扶手 */
+  for(let d=0;d<3;d++)_lmBox(0.5,0.09,0.95,LM.wood,0,1.30,1.05+d*0.92,g);
+  for(const px of [-0.24,0.24])for(let d=0;d<3;d++)_lmBox(0.06,0.42,0.06,LM.wood,px,1.50,1.10+d*0.92,g);
+  /* 水车：侧旁木轮 + 十字辐条 */
+  const wheel=_lmCyl(0.55,0.55,0.10,12,LM.wood,1.15,1.05,-0.35,g);
   wheel.rotation.z=Math.PI/2;wheel.rotation.y=Math.PI/2;
-  const sp1=_lmBox(1.0,0.07,0.07,LM.roof,1.1,1.1,-0.3,g);
-  sp1.rotation.z=Math.PI/2;sp1.rotation.y=Math.PI/2;
-  const sp2=_lmBox(0.07,1.0,0.07,LM.roof,1.1,1.1,-0.3,g);
-  sp2.rotation.z=Math.PI/2;sp2.rotation.y=Math.PI/2;
-  const palm=_lmCyl(0.06,0.08,1.9,5,LM.wood,-1.1,0.95,-0.4,g);
-  palm.rotation.z=0.18;
-  _lmSph(0.22,LM.leaf,-1.25,1.9,-0.4,g);
+  const sp1=_lmBox(1.06,0.07,0.07,LM.roof,1.15,1.05,-0.35,g);sp1.rotation.z=Math.PI/2;sp1.rotation.y=Math.PI/2;
+  const sp2=_lmBox(0.07,1.06,0.07,LM.roof,1.15,1.05,-0.35,g);sp2.rotation.z=Math.PI/2;sp2.rotation.y=Math.PI/2;
+  /* 棕榈两棵：斜干 + 冠团 */
+  const palm=_lmCyl(0.06,0.08,1.9,5,LM.wood,-1.15,0.95,-0.45,g);palm.rotation.z=0.18;
+  _lmSph(0.22,LM.leaf,-1.30,1.92,-0.45,g);
+  const palm2=_lmCyl(0.05,0.07,1.6,5,LM.wood,1.55,0.80,-0.55,g);palm2.rotation.z=-0.15;
+  _lmSph(0.18,LM.leaf,1.68,1.62,-0.55,g);
   return g;
 }
 /* 秋·石窟坐佛 + 头光 + 侧旁木楼 + 石径（参考图6） */
@@ -3697,7 +3743,7 @@ const plants=new THREE.Group();
 const plantMats=[];
 const pmm=(c,o={})=>{const m=new THREE.MeshBasicMaterial(Object.assign({color:c,transparent:true,depthWrite:false,fog:false},o));plantMats.push(m);decoMats.push(m);return m;};
 {
-  const pebN=pc(20,11),mushN=pc(11,6),berryN=pc(10,5),flwN=pc(16,9);
+  const pebN=pc(30,16),mushN=pc(16,9),berryN=pc(15,8),flwN=pc(24,13);
   const pebM=dmk(0x8b93a6),stemM=pmm(0xe8dcc0),capM=pmm(0xc9574b),cap2=pmm(0xe0a06a),
         berryM=pmm(0xd8453c),berry2=pmm(0x7a4bb0),flwC=pmm(0xe89aa0),flwB=pmm(0x9ec8f0);
   for(let i=0;i<pebN;i++){
@@ -3725,6 +3771,13 @@ const pmm=(c,o={})=>{const m=new THREE.MeshBasicMaterial(Object.assign({color:c,
     stem.position.set(x,0.07,z);plants.add(stem);
     const pet=new THREE.Mesh(new THREE.SphereGeometry(0.045,8,6),i%3?flwC:flwB);
     pet.scale.y=0.5;pet.position.set(x,0.15,z);plants.add(pet);
+  }
+  /* 盘缘低矮灌丛：贴地小绿团，丰富盘边层次 */
+  const shrubN=pc(14,8),shrubM=pmm(0x3f7a34);
+  for(let i=0;i<shrubN;i++){
+    const [x,z]=ringPos(7.2,8.8);
+    const s=new THREE.Mesh(new THREE.SphereGeometry(0.14,10,8),shrubM);
+    s.scale.set(1,0.6,0.9);s.position.set(x,0.08,z);plants.add(s);
   }
 }
 scene.add(pebbles,plants);
