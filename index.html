@@ -754,14 +754,15 @@ function makeTerrainMountain(seed,aCenter,layer){
   const peaks=[];
   if(far){
     const aOff=[-1.05,-0.62,0.02,0.66,1.12];
-    for(const o of aOff)peaks.push({a:aCenter+o,r:rndRange(23.0,26.0),wa:rndRange(0.10,0.14),wr:rndRange(1.0,1.25),hh:rndRange(0.60,0.72)});
+    for(const o of aOff)peaks.push({a:aCenter+o,r:rndRange(23.0,26.0),wa:rndRange(0.09,0.13),wr:rndRange(0.6,0.85),hh:rndRange(0.62,0.74)});
     const sOff=[-0.55,0.50,1.42];
-    for(const o of sOff)peaks.push({a:aCenter+o,r:rndRange(26.0,27.0),wa:rndRange(0.06,0.08),wr:rndRange(0.55,0.7),hh:rndRange(0.48,0.56)});
+    for(const o of sOff)peaks.push({a:aCenter+o,r:rndRange(26.0,27.0),wa:rndRange(0.06,0.08),wr:rndRange(0.4,0.55),hh:rndRange(0.50,0.58)});
   }else{
-    peaks.push({a:aCenter-0.80,r:18.2,wa:0.22,wr:1.20,hh:0.85});
-    peaks.push({a:aCenter-0.28,r:18.8,wa:0.20,wr:1.10,hh:0.72});
-    peaks.push({a:aCenter+0.30,r:18.4,wa:0.22,wr:1.20,hh:0.78});
-    peaks.push({a:aCenter+0.85,r:18.2,wa:0.20,wr:1.10,hh:0.82});
+    peaks.push({a:aCenter-0.85,r:18.0,wa:0.13,wr:0.62,hh:0.92});
+    peaks.push({a:aCenter-0.30,r:18.6,wa:0.12,wr:0.58,hh:0.78});
+    peaks.push({a:aCenter+0.18,r:18.2,wa:0.14,wr:0.70,hh:0.86});
+    peaks.push({a:aCenter+0.62,r:18.7,wa:0.11,wr:0.55,hh:0.80});
+    peaks.push({a:aCenter+1.02,r:18.1,wa:0.13,wr:0.60,hh:0.74});
   }
   /* 顶点色只存灰阶明暗，季节色相由材质 color 按四季色板染 */
   const cFoot=new THREE.Color(0.74,0.74,0.74);
@@ -782,11 +783,12 @@ function makeTerrainMountain(seed,aCenter,layer){
       const env=Math.exp(-(((r-rBase)/(far?3.6:2.6))**2));
       let h=Hmax*(0.10+0.90*ridgeLine)*env;
       for(const p of peaks){
-        /* 山脊随径向轻微偏斜，避免对称圆滑的孤立包 */
+        /* 山脊随径向轻微偏斜，避免对称圆滑的孤立包；峰形锐化收尖 */
         const ridgeShift=0.18*((r-p.r)/p.wr);
         const da=Math.atan2(Math.sin(a-(p.a+ridgeShift)),Math.cos(a-(p.a+ridgeShift)));
         const dr=r-p.r;
-        h+=Hmax*p.hh*Math.exp(-((da/p.wa)**2)-((dr/p.wr)**2));
+        const peakShape=Math.exp(-1.6*(da/p.wa)**2-1.4*(dr/p.wr)**2);
+        h+=Hmax*p.hh*peakShape;
       }
       /* 沟壑下切：沿径向拉长的宽沟槽，加深切成 V 谷，沟内留阴影 */
       const gully=_fbm(Math.cos(a)*3.0+seed,r*0.10-seed);
@@ -888,6 +890,48 @@ function makeTerrainTex(){
   return t;
 }
 const terrainTex=makeTerrainTex();
+/* 木板纹理：竖向板缝 + 纵向木纹丝，base 为木色基准 */
+function makeWoodTex(base,plankW){
+  const S=256,cv=document.createElement('canvas');cv.width=cv.height=S;
+  const g=cv.getContext('2d');
+  g.fillStyle=base;g.fillRect(0,0,S,S);
+  for(let x=0;x<S;x+=plankW){
+    g.fillStyle='rgba(0,0,0,0.28)';g.fillRect(x,0,2,S);
+    /* 板内纵向木纹丝 */
+    for(let k=0;k<plankW*1.4;k++){
+      const wx=x+2+Math.random()*(plankW-4);
+      g.strokeStyle=`rgba(${Math.random()<0.5?'0,0,0':'255,235,200'},${0.05+Math.random()*0.08})`;
+      g.lineWidth=1;g.beginPath();g.moveTo(wx,0);
+      g.bezierCurveTo(wx+(Math.random()-0.5)*6,S*0.33,wx+(Math.random()-0.5)*6,S*0.66,wx+(Math.random()-0.5)*6,S);g.stroke();
+    }
+  }
+  const img=g.getImageData(0,0,S,S),d=img.data;
+  for(let i=0;i<d.length;i+=4){const n=(Math.random()-0.5)*18;d[i]+=n;d[i+1]+=n;d[i+2]+=n;}
+  g.putImageData(img,0,0);
+  const t=new THREE.CanvasTexture(cv);t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;return t;
+}
+/* 瓦屋顶纹理：横向瓦垄 + 明暗交错 */
+function makeRoofTex(){
+  const S=256,cv=document.createElement('canvas');cv.width=cv.height=S;
+  const g=cv.getContext('2d');g.fillStyle='#4a382c';g.fillRect(0,0,S,S);
+  const rh=22;
+  for(let y=0;y<S;y+=rh){
+    g.fillStyle='rgba(0,0,0,0.30)';g.fillRect(0,y,S,3);
+    for(let x=0;x<S;x+=rh){
+      g.fillStyle=`rgba(255,235,210,${0.04+Math.random()*0.05})`;
+      g.fillRect(x+((y/rh)%2?rh/2:0),y+3,rh-4,rh-6);
+    }
+  }
+  const img=g.getImageData(0,0,S,S),d=img.data;
+  for(let i=0;i<d.length;i+=4){const n=(Math.random()-0.5)*16;d[i]+=n;d[i+1]+=n;d[i+2]+=n;}
+  g.putImageData(img,0,0);
+  const t=new THREE.CanvasTexture(cv);t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;return t;
+}
+const woodTex=makeWoodTex('#7a5a3a',32);
+const woodLightTex=makeWoodTex('#c9bda4',32);
+const roofTex=makeRoofTex();
 const bgMountains=[];
 const bgFarMountains=[];
 const ridgeNearMat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:terrainTex,side:THREE.DoubleSide,fog:false});
@@ -1036,9 +1080,9 @@ for(let i=0;i<FOL_N;i++){
   const seed=Math.random()*TAU;
   let m;
   if(kind!=='grass'){
-    m=buildFoliageBillboard(kind,h);
+    m=makeTree3D(h,seed,kind);
     m.position.set(px,0.02,pz);
-    m.userData.is3D=false;
+    m.userData.is3D=true;
   }else{
     const mat=new THREE.MeshBasicMaterial({map:folTex.grass,transparent:true,depthWrite:false,fog:false});
     m=new THREE.Mesh(folPlane,mat);
@@ -1068,9 +1112,9 @@ for(let i=0;i<BELT_N;i++){
   const h=rndRange(1.5,2.3);
   const px=Math.cos(ang)*rad,pz=Math.sin(ang)*rad;
   const seed=Math.random()*TAU;
-  const m=buildFoliageBillboard('bush',h);
+  const m=makeTree3D(h,seed,'bush');
   m.position.set(px,0.02,pz);
-  m.userData.is3D=false;m.userData.seed=seed;m.userData.amp=rndRange(0.030,0.052);
+  m.userData.is3D=true;m.userData.seed=seed;m.userData.amp=rndRange(0.030,0.052);
   m.userData.far=true;m.userData.kind='bush';m.userData.op=1;m.userData.ang=ang;
   m.userData.px=px;m.userData.pz=pz;m.userData.v=rndRange(0.86,1.10);m.userData.warm=rndRange(-0.05,0.07);
   const sh=new THREE.Mesh(shadowGeo,shadowMat);
@@ -1143,41 +1187,78 @@ let dustMat=null;
 const bgTreelines=[];
 /* 远景村落小屋：低模 3D 木石小屋（墙体+双坡顶+烟囱+门窗），冬季屋顶覆雪 */
 const bgHouses=[];
-const houseWallMat =new THREE.MeshLambertMaterial({color:0x8a6a48,fog:false});
-const houseWallMat2=new THREE.MeshLambertMaterial({color:0xd6cfbd,fog:false});
-const houseRoofMat =new THREE.MeshLambertMaterial({color:0x5a4030,fog:false});
+const houseWallMat =new THREE.MeshLambertMaterial({color:0xffffff,map:woodTex,fog:false});
+const houseWallMat2=new THREE.MeshLambertMaterial({color:0xffffff,map:woodLightTex,fog:false});
+const houseRoofMat =new THREE.MeshLambertMaterial({color:0xffffff,map:roofTex,fog:false});
 const houseChimMat =new THREE.MeshLambertMaterial({color:0x6b6a63,fog:false});
 const houseDoorMat =new THREE.MeshLambertMaterial({color:0x4a3423,fog:false});
+const housePostMat=new THREE.MeshLambertMaterial({color:0x8a7358,map:woodTex,fog:false});
 const houseWinMat  =new THREE.MeshLambertMaterial({color:0xe6c878,fog:false});
 const houseSnowMat =new THREE.MeshLambertMaterial({color:0xeef2f5,fog:false});
 function buildHouse(white){
   const g=new THREE.Group();
-  const w=1.7,h=1.35,d=1.5,rh=0.6;
-  const wall=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),white?houseWallMat2:houseWallMat);
-  wall.position.y=h/2;wall.castShadow=true;wall.receiveShadow=true;g.add(wall);
-  /* 双坡屋顶：两片斜板搭成人字，屋脊沿前后方向 */
-  const roofGeo=new THREE.BoxGeometry(w*0.62,0.09,d+0.28);
+  const w=1.7,d=1.5,stilt=0.5,wh=1.15,rh=0.62;
+  const wallMat=white?houseWallMat2:houseWallMat;
+  /* 架空柱：把屋身抬离地面，形成架空层 */
+  const postGeo=new THREE.BoxGeometry(0.13,stilt,0.13);
+  for(const sx of [-1,1])for(const sz of [-1,1]){
+    const p=new THREE.Mesh(postGeo,housePostMat);
+    p.position.set(sx*w*0.4,stilt/2,sz*d*0.4);g.add(p);
+  }
+  /* 架空平台地板 */
+  const deck=new THREE.Mesh(new THREE.BoxGeometry(w+0.2,0.12,d+0.2),housePostMat);
+  deck.position.y=stilt;g.add(deck);
+  /* 主体木墙 */
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(w,wh,d),wallMat);
+  wall.position.y=stilt+wh/2;g.add(wall);
+  /* 墙角立柱分格 */
+  const colGeo=new THREE.BoxGeometry(0.15,wh,0.15);
+  for(const sx of [-1,1])for(const sz of [-1,1]){
+    const c=new THREE.Mesh(colGeo,housePostMat);
+    c.position.set(sx*w/2,stilt+wh/2,sz*d/2);g.add(c);
+  }
+  const wallTop=stilt+wh;
+  /* 山墙三角板（屋身左右两端封山） */
+  const gableShape=new THREE.Shape();
+  gableShape.moveTo(-w/2,0);gableShape.lineTo(w/2,0);gableShape.lineTo(0,rh);gableShape.closePath();
+  const gableGeo=new THREE.ExtrudeGeometry(gableShape,{depth:0.1,bevelEnabled:false});
+  for(const sz of [-1,1]){
+    const gb=new THREE.Mesh(gableGeo,wallMat);
+    gb.position.set(0,wallTop,sz>0?d/2:-d/2-0.1);g.add(gb);
+  }
+  /* 双坡挑檐屋顶：两片斜板搭成人字，坡向左右 */
+  const roofGeo=new THREE.BoxGeometry(w*0.62,0.09,d+0.34);
   const ang=Math.atan2(rh,w/2);
   const lf=new THREE.Mesh(roofGeo,houseRoofMat);
-  lf.position.set(-w/4,h+rh/2-0.05,0);lf.rotation.z=ang;lf.castShadow=true;g.add(lf);
+  lf.position.set(-w/4,wallTop+rh/2-0.04,0);lf.rotation.z=ang;g.add(lf);
   const rf=new THREE.Mesh(roofGeo,houseRoofMat);
-  rf.position.set(w/4,h+rh/2-0.05,0);rf.rotation.z=-ang;rf.castShadow=true;g.add(rf);
+  rf.position.set(w/4,wallTop+rh/2-0.04,0);rf.rotation.z=-ang;g.add(rf);
   /* 冬季雪顶：两片白色薄壳覆在屋面，默认隐藏 */
-  const snowGeo=new THREE.BoxGeometry(w*0.62,0.05,d+0.30);
+  const snowGeo=new THREE.BoxGeometry(w*0.62,0.05,d+0.36);
   const ls=new THREE.Mesh(snowGeo,houseSnowMat);
-  ls.position.set(-w/4,h+rh/2+0.02,0);ls.rotation.z=ang;g.add(ls);
+  ls.position.set(-w/4,wallTop+rh/2+0.03,0);ls.rotation.z=ang;g.add(ls);
   const rs=new THREE.Mesh(snowGeo,houseSnowMat);
-  rs.position.set(w/4,h+rh/2+0.02,0);rs.rotation.z=-ang;g.add(rs);
+  rs.position.set(w/4,wallTop+rh/2+0.03,0);rs.rotation.z=-ang;g.add(rs);
   ls.visible=rs.visible=false;
   /* 烟囱 */
   const chim=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.55,0.24),houseChimMat);
-  chim.position.set(w*0.22,h+rh*0.7,0.2);chim.castShadow=true;g.add(chim);
-  /* 门与窗（正面 +z） */
-  const door=new THREE.Mesh(new THREE.BoxGeometry(0.38,0.62,0.07),houseDoorMat);
-  door.position.set(0,0.31,d/2+0.02);g.add(door);
-  const winL=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.30,0.07),houseWinMat);
-  winL.position.set(-w*0.28,0.85,d/2+0.02);g.add(winL);
-  const winR=winL.clone();winR.position.x=w*0.28;g.add(winR);
+  chim.position.set(w*0.22,wallTop+rh*0.7,0.2);g.add(chim);
+  /* 门（正面 +z） */
+  const door=new THREE.Mesh(new THREE.BoxGeometry(0.38,0.72,0.08),houseDoorMat);
+  door.position.set(0,stilt+0.36,d/2+0.03);g.add(door);
+  /* 窗：深色窗框 + 暖色玻璃 */
+  const winGeo=new THREE.BoxGeometry(0.36,0.36,0.06);
+  const glassGeo=new THREE.BoxGeometry(0.26,0.26,0.07);
+  for(const sx of [-1,1]){
+    const fr=new THREE.Mesh(winGeo,housePostMat);fr.position.set(sx*w*0.30,stilt+0.72,d/2+0.02);g.add(fr);
+    const gl=new THREE.Mesh(glassGeo,houseWinMat);gl.position.set(sx*w*0.30,stilt+0.72,d/2+0.035);g.add(gl);
+  }
+  /* 门前两级台阶 */
+  const step1=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.14,0.3),housePostMat);
+  step1.position.set(0,0.07,d/2+0.32);g.add(step1);
+  const step2=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.14,0.26),housePostMat);
+  step2.position.set(0,stilt-0.07,d/2+0.16);g.add(step2);
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
   g.userData.snow=[ls,rs];
   return g;
 }
