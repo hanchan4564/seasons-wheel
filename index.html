@@ -553,52 +553,7 @@ const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(600,48,32),skyMat);scene.a
 
 /* ===== 背景 3D 活景：远侧风动树丛花草 + 承接地面，随季节换色（白昼主题） ===== */
 const bgGroup=new THREE.Group();scene.add(bgGroup);
-const folTex={};
-['tree','bush','grass','tree_autumn','tree_winter','bush_autumn','bush_winter'].forEach(function(k){const t=new THREE.TextureLoader().load('assets/foliage/'+k+'.webp');t.encoding=THREE.sRGBEncoding;folTex[k]=t;});
-/* 秋/冬去绿变体：Canvas 重算像素，把绿色冠叶分别转金褐、霜白；灌丛/草贴图底部深色枝干根提亮并入叶色，避免俯视显黑斑 */
-const folVar={};
-function recolorTex(img,mode,kind){
-  const w=img.width,h=img.height;
-  const cv=document.createElement('canvas');cv.width=w;cv.height=h;
-  const cx=cv.getContext('2d');cx.drawImage(img,0,0);
-  const d=cx.getImageData(0,0,w,h),p=d.data;
-  for(let i=0;i<p.length;i+=4){
-    const r=p[i],g=p[i+1],b=p[i+2],a=p[i+3];
-    if(a<8)continue;
-    const y=Math.floor((i/4)/w);
-    const lum=(r+g+b)/3;
-    const gdom=g>r*1.05&&g>b*1.05;
-    const darkRoot=(kind==='bush'||kind==='grass')&&y>h*0.30&&lum<125;
-    if(darkRoot){
-      p[i]=Math.min(255,r*1.8+25);
-      p[i+1]=Math.min(255,g*1.8+25);
-      p[i+2]=Math.min(255,b*1.6+18);
-    }else if(mode!=='orig'){
-      if(mode==='aut'){
-        if(gdom){p[i]=Math.min(255,r*1.15+g*0.35);p[i+1]=g*0.62;p[i+2]=b*0.35;}
-      }else if(mode==='spr'){
-        if(gdom){
-          const fl=kind==='mtn'?0:0.18;
-          if(Math.random()<fl){p[i]=250;p[i+1]=214;p[i+2]=224;}
-          else{p[i]=Math.min(255,r*1.06+18);p[i+1]=g*0.96+22;p[i+2]=b*0.70;}
-        }
-      }else{
-        if(lum<70){p[i]=r*0.55;p[i+1]=g*0.55;p[i+2]=b*0.6;}
-        else if(gdom){const t=0.8;const R=209,G=209,B=225;p[i]=r+(R-r)*t;p[i+1]=g+(G-g)*t;p[i+2]=b+(B-b)*t;}
-      }
-    }
-  }
-  cx.putImageData(d,0,0);
-  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;return t;
-}
-function loadVar(key,url,kind){
-  const img=new Image();
-  img.onload=()=>{folVar[key]={orig:recolorTex(img,'orig',kind),spr:recolorTex(img,'spr',kind),aut:recolorTex(img,'aut',kind),win:recolorTex(img,'win',kind)};};
-  img.src=url;
-}
-['tree','bush','grass'].forEach(k=>loadVar('fol.'+k,'assets/foliage/'+k+'.webp',k));
-loadVar('mtn','assets/foliage/mountain.webp','mtn');
-loadVar('tl','assets/foliage/treeline.webp','tl');
+/* 背景植被已全部改为程序化实体几何（makeTree3D / bgGrass 实例草叶），不再加载照片抠图 webp 贴片 */
 
 /* 背景承接地面：与盘面同构的指针扇区渐变，已扫方位铺新季、未扫留旧季 */
 const groundGeo=new THREE.RingGeometry(10.6,30,96,1);
@@ -957,16 +912,6 @@ const shadowTex=new THREE.CanvasTexture(shadowCv);
 const shadowGeo=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
 const shadowMat=new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,fog:false,opacity:0.42});
 
-/* 写实整树/整灌交叉双平面贴片：照片级抠图 webp，两片正交消除正面薄片状 */
-function buildFoliageBillboard(kind,h){
-  const g=new THREE.Group();
-  const mat=new THREE.MeshBasicMaterial({map:folTex[kind],transparent:true,alphaTest:0.3,depthWrite:false,fog:false,side:THREE.DoubleSide});
-  const w=h*(kind==='tree'?0.86:0.96);
-  const p1=new THREE.Mesh(folPlane,mat);p1.scale.set(w,h,1);
-  const p2=new THREE.Mesh(folPlane,mat);p2.scale.set(w,h,1);p2.rotation.y=Math.PI/2;
-  g.add(p1,p2);g.userData.mat=mat;
-  return g;
-}
 
 const trunkMat=new THREE.MeshStandardMaterial({color:0x382718,roughness:0.98,metalness:0,fog:false});
 const leafPlaneGeo=new THREE.PlaneGeometry(1,1);
@@ -1071,7 +1016,7 @@ for(let i=0;i<FOL_N;i++){
     rad=rndRange(14.5,18.5);kind=Math.random()<0.55?'tree':'bush';
     h=kind==='tree'?rndRange(2.4,3.2):rndRange(1.6,2.2);far=false;
   }else{
-    rad=rndRange(17.0,23.0);kind=Math.random()<0.5?'bush':'grass';h=rndRange(0.9,1.7);far=true;
+    rad=rndRange(17.0,23.0);kind='bush';h=rndRange(0.9,1.5);far=true;
   }
   /* 林窗：地标角位前后让开前排高树与近层灌丛，露出建筑主体，远层草灌保留 */
   const inGap=LM_ANGLES.some(la=>_angDist(ang,la)<0.34);
@@ -1079,18 +1024,9 @@ for(let i=0;i<FOL_N;i++){
   const px=Math.cos(ang)*rad,pz=Math.sin(ang)*rad;
   const seed=Math.random()*TAU;
   let m;
-  if(kind!=='grass'){
-    m=makeTree3D(h,seed,kind);
-    m.position.set(px,0.02,pz);
-    m.userData.is3D=true;
-  }else{
-    const mat=new THREE.MeshBasicMaterial({map:folTex.grass,transparent:true,depthWrite:false,fog:false});
-    m=new THREE.Mesh(folPlane,mat);
-    const mir=Math.random()<0.5?-1:1;
-    m.scale.set(h*0.9*mir,h,1);
-    m.position.set(px,0.02,pz);
-    m.userData.mat=mat;
-  }
+  m=makeTree3D(h,seed,kind);
+  m.position.set(px,0.02,pz);
+  m.userData.is3D=true;
   m.userData.seed=seed;
   m.userData.amp=kind==='grass'?rndRange(0.06,0.10):rndRange(0.030,0.052);
   m.userData.far=far;m.userData.kind=kind;m.userData.op=1;m.userData.ang=ang;
@@ -1201,8 +1137,6 @@ for(let i=0;i<BEAM_N;i++){
 }
 /* 近景暖金浮尘：随光束在空气里缓慢漂浮，白昼春夏可见（创建在粒子工厂定义之后） */
 let dustMat=null;
-/* 远景林带由主树丛远景小树构成，不再叠加横幅贴片 */
-const bgTreelines=[];
 /* 远景村落小屋：低模 3D 木石小屋（墙体+双坡顶+烟囱+门窗），冬季屋顶覆雪 */
 const bgHouses=[];
 const houseWallMat =new THREE.MeshLambertMaterial({color:0xffffff,map:woodTex,fog:false});
@@ -1689,12 +1623,6 @@ const mtnPal=[
   new THREE.Color(0.54,0.42,0.24),
   new THREE.Color(0.60,0.63,0.68)
 ];
-function seasonTex(texSet,s){if(!texSet)return null;
-  if(s===3)return texSet.aut;
-  if(s===4)return texSet.win;
-  if(s===1)return texSet.spr||texSet.orig;
-  return texSet.orig;
-}
 function sectorMask(ang,pointer){
   const w=0.35;
   let aa=((ang%TAU)+TAU)%TAU,p=((pointer%TAU)+TAU)%TAU;
@@ -1713,14 +1641,12 @@ function updateFoliageTint(A,B,pointer,winterW){
     b.visible = winterW<0.7 || (b.userData.seed%1)<0.5;
   }
   const fA=folTint[ia],fB=folTint[ib],bA=bgTint[ia],bB=bgTint[ib];
-  const vM=folVar.mtn,vT=folVar.tl;
   for(const m of bgMountains){
     const mk=sectorMask(m.userData.ang,pointer);
     if(m.userData.ridge){
       bgTmp.copy(mtnPal[ia]).lerp(mtnPal[ib],mk).multiplyScalar(0.95);
     }else{bgTmp.copy(bA).lerp(bB,mk).multiplyScalar(0.64);}
     m.material.color.copy(bgTmp);
-    if(!m.userData.ridge){const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);if(tf&&m.material.map!==tf)m.material.map=tf;}
   }
   for(const m of bgFarMountains){
     const mk=sectorMask(m.userData.ang,pointer);
@@ -1728,19 +1654,11 @@ function updateFoliageTint(A,B,pointer,winterW){
       bgTmp.copy(mtnPal[ia]).lerp(mtnPal[ib],mk).lerp(folFog,0.45).multiplyScalar(0.88);
     }else{bgTmp.copy(bA).lerp(bB,mk).lerp(folFog,0.45);}
     m.material.color.copy(bgTmp);
-    if(!m.userData.ridge){const tf=mk>0.5?seasonTex(vM,B):seasonTex(vM,A);if(tf&&m.material.map!==tf)m.material.map=tf;}
   }
   for(const rk of rockMeshes){
     const mk=sectorMask(rk.userData.ang,pointer);
     bgTmp.copy(stonePal[ia]).lerp(stonePal[ib],mk);
     rk.material.color.copy(bgTmp);
-  }
-  for(const m of bgTreelines){
-    const mk=sectorMask(m.userData.ang,pointer);
-    bgTmp.copy(bA).lerp(bB,mk).multiplyScalar(0.92);
-    m.material.color.copy(bgTmp);
-    const tf=mk>0.5?seasonTex(vT,B):seasonTex(vT,A);
-    if(tf&&m.material.map!==tf)m.material.map=tf;
   }
   for(const h of bgHouses){
     const mk=sectorMask(h.userData.ang,pointer);
@@ -1764,13 +1682,6 @@ function updateFoliageTint(A,B,pointer,winterW){
         lm.color.multiplyScalar(u.v);
         lm.color.lerp(folFog,u.far?0.38:0.06);
       }
-    }else{
-      u.mat.color.copy(folTmp);
-      const fv=folVar['fol.'+u.kind];
-      const tf=mk>0.5?seasonTex(fv,B):seasonTex(fv,A);
-      if(tf&&u.mat.map!==tf)u.mat.map=tf;
-      const bare=u.kind==='grass'?0.28:0.45;
-      u.mat.opacity=1-winterW*bare;
     }
   }
 }
