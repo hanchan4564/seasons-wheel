@@ -1469,6 +1469,134 @@ placeLandmark(buildBambooHouse(),2,LM_ANGLES[1],14.4);
 placeLandmark(buildStiltHouse(),2,LM_ANGLES[2],16.0);
 placeLandmark(buildTemple(),3,LM_ANGLES[3],14.4);
 placeLandmark(buildRuin(),4,LM_ANGLES[4],14.4);
+/* ===== 外环分区骨架：宅院·菜畦·果林·林缘·后山·水塘 六区段，篱笆/树行/土路/岸石过渡 ===== */
+const ZONES=[
+  {key:'yard',   c:3.66, label:'宅院'},
+  {key:'field',  c:2.61, label:'菜畦'},
+  {key:'orchard',c:1.57, label:'果林'},
+  {key:'back',   c:0.52, label:'后山'},
+  {key:'edge',   c:5.76, label:'林缘'},
+  {key:'pond',   c:4.71, label:'水塘'}
+];
+function zoneAt(ang){let d=TAU,zi=0;for(let i=0;i<ZONES.length;i++){const dd=_angDist(ang,ZONES[i].c);if(dd<d){d=dd;zi=i;}}return ZONES[zi];}
+const zoneFenceMat=new THREE.MeshLambertMaterial({color:0x8a7358,map:woodTex,fog:false});
+const zoneSoilMat =new THREE.MeshLambertMaterial({color:0x6e5236,fog:false});
+const zonePathMat =new THREE.MeshLambertMaterial({color:0x8a7a5e,fog:false});
+const zoneRockMat =new THREE.MeshLambertMaterial({color:0x7d7a70,fog:false});
+const zoneReedMat =new THREE.MeshLambertMaterial({color:0x5a6b3a,fog:false});
+const zoneHeadMat =new THREE.MeshLambertMaterial({color:0x8a6a44,fog:false});
+const zoneRockGeo=new THREE.IcosahedronGeometry(1,1);
+function _zp(ang,rad){return {x:Math.cos(ang)*rad,z:Math.sin(ang)*rad};}
+function zoneTree(ang,rad,h,kind,far){
+  const seed=Math.random()*TAU;
+  const m=makeTree3D(h,seed,kind);
+  const p=_zp(ang,rad);
+  m.position.set(p.x,0.02,p.z);
+  m.userData.is3D=true;m.userData.seed=seed;
+  m.userData.amp=kind==='grass'?rndRange(0.06,0.10):rndRange(0.030,0.052);
+  m.userData.far=far;m.userData.kind=kind;m.userData.op=1;m.userData.ang=ang;
+  m.userData.px=p.x;m.userData.pz=p.z;
+  m.userData.v=rndRange(0.86,1.10);m.userData.warm=rndRange(-0.05,0.07);
+  const sh=new THREE.Mesh(shadowGeo,shadowMat);
+  const sr=h*0.55;sh.position.set(p.x,0.015,p.z);sh.scale.set(sr,1,sr*0.8);
+  bgGroup.add(sh);bgGroup.add(m);bgFoliage.push(m);
+  return m;
+}
+function buildFence(len){
+  const g=new THREE.Group();
+  const postN=Math.max(2,Math.round(len/0.55));
+  const postGeo=new THREE.BoxGeometry(0.09,0.62,0.09);
+  for(let i=0;i<=postN;i++){
+    const px=-len/2+len*i/postN;
+    const p=new THREE.Mesh(postGeo,zoneFenceMat);p.position.set(px,0.31,0);g.add(p);
+  }
+  const railGeo=new THREE.BoxGeometry(len,0.07,0.06);
+  const r1=new THREE.Mesh(railGeo,zoneFenceMat);r1.position.y=0.42;g.add(r1);
+  const r2=new THREE.Mesh(railGeo,zoneFenceMat);r2.position.y=0.22;g.add(r2);
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  return g;
+}
+function placeFence(ang,rad,len){
+  const g=buildFence(len);const p=_zp(ang,rad);
+  g.position.set(p.x,0.02,p.z);g.lookAt(0,0.02,0);bgGroup.add(g);
+}
+function zoneRock(ang,rad,s){
+  const rk=new THREE.Mesh(zoneRockGeo,zoneRockMat);
+  const p=_zp(ang,rad);
+  rk.scale.set(s*rndRange(1,1.5),s*0.62,s);
+  rk.position.set(p.x,0.16,p.z);
+  rk.rotation.set(rndRange(0,0.5),Math.random()*TAU,rndRange(0,0.5));
+  rk.castShadow=true;rk.userData.ang=ang;
+  bgGroup.add(rk);
+}
+function buildReed(){
+  const g=new THREE.Group();
+  for(let k=0;k<5;k++){
+    const h=rndRange(0.7,1.1);const x=(k-2)*0.06;
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.02,h,5),zoneReedMat);
+    stem.position.set(x,h/2,0);g.add(stem);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.05,6,5),zoneHeadMat);
+    head.position.set(x,h+0.05,0);g.add(head);
+  }
+  return g;
+}
+/* 菜畦：三条土垄 + 垄侧苗丛 + 一条农人道 */
+(function fieldZone(){
+  const c=2.61;
+  const rows=[13.2,14.4,15.6];
+  for(let ri=0;ri<rows.length;ri++){
+    const rr=rows[ri];const off=(ri-1)*0.16;
+    for(let k=0;k<4;k++){
+      const a=c+off+(k-1.5)*0.16;const p=_zp(a,rr);
+      const ridge=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.16,0.34),zoneSoilMat);
+      ridge.position.set(p.x,0.08,p.z);ridge.rotation.y=-(a+Math.PI/2);ridge.receiveShadow=true;
+      bgGroup.add(ridge);
+    }
+    zoneTree(c+off,rr+0.55,0.7,'bush',false);
+  }
+  const path=new THREE.Mesh(new THREE.PlaneGeometry(2.8,0.5).rotateX(-Math.PI/2),zonePathMat);
+  const pp=_zp(c,13.8);path.position.set(pp.x,0.018,pp.z);path.rotation.y=-(c+Math.PI/2);bgGroup.add(path);
+})();
+/* 果林：两排果树成列 */
+(function orchardZone(){
+  const c=1.57;const angs=[-0.42,-0.21,0,0.21,0.42];
+  for(let i=0;i<angs.length;i++){
+    const rr=i%2?14.0:15.4;
+    zoneTree(c+angs[i],rr,rndRange(1.9,2.4),'tree',false);
+  }
+})();
+/* 宅院：院前篱笆两段 + 柴堆 */
+(function yardZone(){
+  const c=3.66;
+  placeFence(c-0.30,13.6,1.8);placeFence(c+0.30,13.6,1.8);
+  const log=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.34,0.4),zoneSoilMat);
+  const lp=_zp(c-0.55,14.6);log.position.set(lp.x,0.17,lp.z);log.rotation.y=-c;bgGroup.add(log);
+})();
+/* 水塘：溪岸石 + 芦苇丛 */
+(function pondZone(){
+  const c=4.71;
+  const spots=[[-0.34,17.2],[-0.12,20.0],[0.18,17.4],[0.38,19.8],[-0.22,18.8],[0.28,18.6]];
+  for(const [o,rr] of spots)zoneRock(c+o,rr,rndRange(0.35,0.6));
+  for(const o of [-0.26,0.10,0.34]){
+    const r=buildReed();const p=_zp(c+o,17.0);r.position.set(p.x,0.02,p.z);bgGroup.add(r);
+  }
+})();
+/* 林缘：鸟兽小径两条 */
+(function edgeZone(){
+  const c=5.76;
+  for(const o of [-0.22,0.22]){
+    const path=new THREE.Mesh(new THREE.PlaneGeometry(2.2,0.4).rotateX(-Math.PI/2),zonePathMat);
+    const p=_zp(c+o,14.6);path.position.set(p.x,0.018,p.z);path.rotation.y=-(c+o+Math.PI/2);bgGroup.add(path);
+  }
+})();
+/* 后山：坡脚剪影密林 */
+(function backZone(){
+  const c=0.52;
+  for(let i=0;i<3;i++)zoneTree(c+(i-1)*0.30,18.2,rndRange(2.0,2.6),'bush',true);
+})();
+/* 区段交界树行：六段分界各立一株小乔木 */
+const ZONE_BORDERS=[3.14,2.09,1.05,0.00,5.24,4.18];
+for(const ba of ZONE_BORDERS)zoneTree(ba,16.5,rndRange(1.5,1.9),'tree',false);
 /* 背景 3D 动物：去掉 Sprite 贴纸，实体模型/程序化形体并带动作（狐骨骼动画 · 鸟虫扇翅） */
 const bgAnimals=[];
 const animalLoader=new THREE.GLTFLoader();
