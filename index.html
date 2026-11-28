@@ -1869,12 +1869,15 @@ function smokeUpdate(t){
 }
 /* 田间农人：简笔几何小人，常驻四季，持锄站立 / 弯腰劳作，带轻微起伏 */
 const bgFarmers=[];
-const FARM={
-  cloth:new THREE.MeshLambertMaterial({color:0x8a6a44,fog:false}),
-  skin:new THREE.MeshLambertMaterial({color:0xd9b08a,fog:false}),
-  hat:new THREE.MeshLambertMaterial({color:0xc9a86a,fog:false}),
-  tool:new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false})
-};
+/* 六名农人不同衣裳配色与身高：青布 / 棕褐 / 灰蓝 / 土黄 / 暗红 / 靛青 */
+const FARM_OUTFITS=[
+  {cloth:0x7a8a5a,hat:0xc9a86a},{cloth:0x8a6a44,hat:0xc9a86a},
+  {cloth:0x6a7a8a,hat:0xb8a06a},{cloth:0xa88a4a,hat:0xc9a86a},
+  {cloth:0x8a4a44,hat:0xb8a06a},{cloth:0x5a5a7a,hat:0xc9a86a}
+];
+const FARM_SKIN=new THREE.MeshLambertMaterial({color:0xd9b08a,fog:false});
+const FARM_TOOL=new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false});
+const farmArmGeo=new THREE.CylinderGeometry(0.028,0.028,0.26,5);
 /* 自治任务点：菜畦地块 / 果林 / 柴堆 / 屋门歇息 */
 function farmerTasks(){
   const tasks=[];
@@ -1899,28 +1902,34 @@ function scoreTask(tk,farmer,season){
   if(tk.plot&&tk.plot.fert<0.35)s+=0.25;
   return s;
 }
-function makeFarmer(ang,rad){
+function makeFarmer(ang,rad,idx){
+  const out=FARM_OUTFITS[idx%FARM_OUTFITS.length];
+  const clothMat=new THREE.MeshLambertMaterial({color:out.cloth,fog:false});
+  const hatMat=new THREE.MeshLambertMaterial({color:out.hat,fog:false});
   const h=new THREE.Group();
-  const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.11,0.30,4,8),FARM.cloth);
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.11,0.30,4,8),clothMat);
   body.position.y=0.42;
-  const head=new THREE.Mesh(new THREE.SphereGeometry(0.10,10,8),FARM.skin);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.10,10,8),FARM_SKIN);
   head.position.y=0.78;
-  const hat=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.10,10),FARM.hat);
+  const hat=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.10,10),hatMat);
   hat.position.y=0.88;
-  const hoe=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.70,5),FARM.tool);
+  const hoe=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.70,5),FARM_TOOL);
   hoe.position.set(0.16,0.45,0);hoe.rotation.z=0.35;
-  h.add(body,head,hat,hoe);
-  h.scale.setScalar(1.32);
+  const armL=new THREE.Mesh(farmArmGeo,clothMat);armL.position.set(-0.15,0.56,0);
+  const armR=new THREE.Mesh(farmArmGeo,clothMat);armR.position.set(0.15,0.56,0);
+  h.add(body,head,hat,hoe,armL,armR);
+  h.scale.setScalar(1.32*(0.96+(idx%3)*0.03));
   h.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
-  h.userData={state:'idle',task:null,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,body,head,hoe};
+  h.userData={state:'idle',task:null,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,armL,armR};
   bgGroup.add(h);bgFarmers.push(h);
   return h;
 }
 /* 六名农人分落各耕作区段：菜畦三垄 / 果林 / 宅院 / 水塘边 */
-[
+const FARMER_STARTS=[
   {ang:2.61,rad:13.4},{ang:2.61,rad:14.6},{ang:2.61,rad:15.4},
   {ang:1.57,rad:14.7},{ang:3.66,rad:13.6},{ang:4.71,rad:14.0}
-].forEach(s=>makeFarmer(s.ang,s.rad));
+];
+FARMER_STARTS.forEach((s,i)=>makeFarmer(s.ang,s.rad,i));
 /* 劳作轻量回写：除草/灌溉回升地块肥力（L3 反馈到生态层） */
 function workBackwrite(task){
   if(task.plot&&task.kind==='weed')task.plot.fert=Math.min(1,task.plot.fert+0.04);
@@ -1942,20 +1951,45 @@ function farmersUpdate(t,dt,season){
         const sp=1.5*dt;
         f.position.x+=dx/d*sp;f.position.z+=dz/d*sp;
         f.rotation.y=-tk.ang;
-        f.rotation.x=Math.sin(t*8+u.seed)*0.05;
-        u.body.rotation.x=0;u.head.position.set(0,0.78,0);
+        /* 步伐起伏 + 摆臂 */
+        u.walkPhase+=dt*7.5;
+        u.body.position.y=0.42+Math.abs(Math.sin(u.walkPhase))*0.05;
+        u.armL.rotation.x=Math.sin(u.walkPhase)*0.55;
+        u.armR.rotation.x=-Math.sin(u.walkPhase)*0.55;
+        u.body.rotation.x=0;u.head.position.set(0,0.78,0);u.head.rotation.y=0;
       }
     }else if(u.state==='work'){
       u.workT+=dt;u.workAcc+=dt;
-      const swing=Math.sin(u.workT*6)*0.14;
-      u.body.rotation.x=0.5+swing;
-      u.head.position.set(0.06,0.70,0);
-      u.hoe.rotation.z=0.35+Math.sin(u.workT*6)*0.25;
+      const kind=u.task?u.task.kind:'weed';
+      const swing=Math.sin(u.workT*6);
+      if(kind==='prune'){
+        /* 修剪：直立侧身，双臂上举剪枝 */
+        u.body.rotation.x=0.12;
+        u.head.position.set(0,0.78,0);u.head.rotation.y=0.3;
+        u.armL.rotation.x=-2.1+Math.sin(u.workT*4)*0.25;
+        u.armR.rotation.x=-2.1-Math.sin(u.workT*4)*0.25;
+      }else if(kind==='chop'){
+        /* 砍柴：高举锄头劈下，幅度更大 */
+        u.body.rotation.x=0.35+swing*0.10;
+        u.head.position.set(0.06,0.72,0);u.head.rotation.y=0;
+        u.hoe.rotation.z=0.35+Math.sin(u.workT*4)*0.50;
+        u.armL.rotation.x=0.7;u.armR.rotation.x=0.7;
+      }else{
+        /* 除草：弯腰挥锄 */
+        u.body.rotation.x=0.5+swing*0.14;
+        u.head.position.set(0.06,0.70,0);u.head.rotation.y=0;
+        u.hoe.rotation.z=0.35+swing*0.25;
+        u.armL.rotation.x=0.5;u.armR.rotation.x=0.5;
+      }
       if(u.workAcc>2.0){u.workAcc=0;workBackwrite(u.task);}
       if(u.workT>4.0){u.state='rest';u.restT=0;}
     }else if(u.state==='rest'){
       u.restT+=dt;
-      u.body.rotation.x=0;u.head.position.set(0,0.78,0);u.hoe.rotation.z=0.35;
+      u.body.rotation.x=0;u.body.position.y=0.42;
+      u.head.position.set(0,0.78,0);
+      u.head.rotation.y=Math.sin(t*0.8+u.seed)*0.4;   /* 歇息时左右张望 */
+      u.armL.rotation.x=0.6;u.armR.rotation.x=0.6;    /* 抱臂 */
+      u.hoe.rotation.z=0.35;
       if(u.restT>3.0)u.state='idle';
     }
     /* 群体避让：简单半径分离，不叠人 */
