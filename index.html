@@ -1576,7 +1576,7 @@ placeLandmark(buildRuin(),4,LM_ANGLES[4],14.4);
 const ECO_KEY='sq_eco_v1';
 let _savedAngle=null;
 const Eco={
-  year:0,richness:0,plots:[],trees:[],firewood:1,villagers:[],_saveT:0,_lastSeason:0,
+  year:0,richness:0,plots:[],trees:[],firewood:1,villagers:[],props:[],_saveT:0,_lastSeason:0,
   load(){
     let raw=null;try{raw=JSON.parse(localStorage.getItem(ECO_KEY)||'null');}catch(e){}
     if(raw&&typeof raw==='object'){
@@ -1585,6 +1585,7 @@ const Eco={
       this.trees=Array.isArray(raw.trees)?raw.trees:[];
       this.firewood=typeof raw.firewood==='number'?raw.firewood:1;
       this.villagers=Array.isArray(raw.villagers)?raw.villagers:[];
+      this.props=Array.isArray(raw.props)?raw.props:[];
       if(typeof raw.totalAngle==='number')_savedAngle=raw.totalAngle;
     }
   },
@@ -1594,11 +1595,12 @@ const Eco={
         totalAngle:totalAngle,year:this.year,richness:this.richness,firewood:this.firewood,
         villagers:this.villagers,
         plots:this.plots.map(p=>({id:p.id,ang:p.ang,rad:p.rad,fert:p.fert,crop:p.crop,stage:p.stage,rest:p.rest,seed:p.seed})),
-        trees:this.trees.map(t=>({id:t.id,age:t.age,seed:t.seed}))
+        trees:this.trees.map(t=>({id:t.id,age:t.age,seed:t.seed})),
+        props:this.props
       }));
     }catch(e){}
   },
-  reset(){try{localStorage.removeItem(ECO_KEY);}catch(e){}this.plots=[];this.trees=[];this.year=0;this.richness=0;this.firewood=1;this.villagers=[];},
+  reset(){try{localStorage.removeItem(ECO_KEY);}catch(e){}this.plots=[];this.trees=[];this.year=0;this.richness=0;this.firewood=1;this.villagers=[];this.props=[];},
   addPlot(ang,rad,seed){
     let p=this.plots.find(x=>x.seed===seed);
     if(!p){
@@ -3040,6 +3042,86 @@ const discTop=new THREE.Mesh(
   new THREE.MeshStandardMaterial({map:makeSoilTexture(),color:0xffffff,roughness:0.90,metalness:0.05})
 );
 discTop.rotation.x=-Math.PI/2;discTop.position.y=0.0;discGroup.add(discTop);
+
+/* ===== 中心主题槽位层：可插拔摆件（地块/道具/角色/装饰/光照分层接口预留） ===== */
+const centerStage=new THREE.Group();scene.add(centerStage);
+const PROP_MIN_R=HUB_R+0.35,PROP_MAX_R=GRASS_R-0.5;
+/* 主题包：季节自动带中心主题；free 为用户自由摆件模式 */
+const STAGE_THEMES={
+  spring:{name:'春花花田',season:1},
+  summer:{name:'夏荷塘',season:2},
+  autumn:{name:'秋晒谷场',season:3},
+  winter:{name:'冬雪境',season:4},
+  free:{name:'自由摆件',season:0}
+};
+function stageThemeForSeason(idx){const k=[null,'spring','summer','autumn','winter'][idx]||'spring';return STAGE_THEMES[k];}
+/* 摆件构件库：均为预设实体几何，不做自由建模 */
+function buildStageProp(kind){
+  const g=new THREE.Group();
+  const mat=(c,r=0.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:0.02});
+  switch(kind){
+    case 'flower':{
+      const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.02,0.42,5),mat(0x4a6b34));
+      stem.position.y=0.21;g.add(stem);
+      const cols=[0xd98aa6,0xe6c25a,0xb98cc9];
+      for(let i=0;i<3;i++){
+        const b=new THREE.Mesh(new THREE.SphereGeometry(0.07,8,7),mat(cols[i],0.7));
+        const a=i/3*TAU;b.position.set(Math.cos(a)*0.06,0.44,Math.sin(a)*0.06);g.add(b);
+      }
+      break;}
+    case 'stone':{
+      const s=new THREE.Mesh(new THREE.DodecahedronGeometry(0.16,0),mat(0x8a8678,0.95));
+      s.scale.y=0.7;s.position.y=0.1;s.rotation.set(0.3,0.5,0.2);g.add(s);break;}
+    case 'lantern':{
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,0.55,6),mat(0x5a4226,0.8));
+      pole.position.y=0.275;g.add(pole);
+      const cage=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.18,0.16),
+        new THREE.MeshStandardMaterial({color:0xffd9a0,emissive:0xff9a4a,emissiveIntensity:0.6,roughness:0.6}));
+      cage.position.y=0.62;g.add(cage);break;}
+    case 'bench':{
+      const wood=mat(0x6b4e2e,0.8);
+      for(let i=0;i<2;i++){const slat=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.04,0.12),wood);slat.position.set(0,0.22+i*0.12,0);g.add(slat);}
+      const legL=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.22,0.1),wood);legL.position.set(-0.26,0.11,0);g.add(legL);
+      const legR=legL.clone();legR.position.x=0.26;g.add(legR);break;}
+    case 'fence':{
+      const wood=mat(0x7a5a36,0.85);
+      const p1=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.34,0.05),wood);p1.position.set(-0.28,0.17,0);g.add(p1);
+      const p2=p1.clone();p2.position.x=0.28;g.add(p2);
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.05,0.04),wood);rail.position.y=0.26;g.add(rail);break;}
+    case 'basin':{
+      const pot=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.14,0.12,16),mat(0x7c7466,0.9));
+      pot.position.y=0.06;g.add(pot);
+      const water=new THREE.Mesh(new THREE.CircleGeometry(0.15,16),
+        new THREE.MeshStandardMaterial({color:0x5f8fa6,roughness:0.15,metalness:0.3}));
+      water.rotation.x=-Math.PI/2;water.position.y=0.125;g.add(water);break;}
+    default:{
+      const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.02,0.42,5),mat(0x4a6b34));
+      stem.position.y=0.21;g.add(stem);}
+  }
+  g.traverse(o=>{if(o.isMesh)o.userData.noHit=true;});
+  return g;
+}
+/* 合法落点：不压中心轴、不出草缘、贴地 */
+function propLegal(x,z){const r=Math.hypot(x,z);return r>=PROP_MIN_R&&r<=PROP_MAX_R;}
+/* 按存档重建摆件布局 */
+function rebuildProps(){
+  centerStage.clear();
+  for(const p of Eco.props){
+    if(!p)continue;
+    if(!propLegal(p.x,p.z))continue;
+    const m=buildStageProp(p.kind);
+    m.position.set(p.x,0,p.z);
+    m.rotation.y=p.rot||0;
+    m.userData.propRef=p;
+    centerStage.add(m);
+  }
+}
+/* 摆件操作钩子：供后续开放摆件面板调用（本轮不挂画布拖拽监听，避免与环绕/暂停点击冲突） */
+window.__stageProps={
+  add(kind,x,z,rot){if(!propLegal(x,z))return false;const m=buildStageProp(kind);m.position.set(x,0,z);m.rotation.y=rot||0;centerStage.add(m);Eco.props.push({kind,x,z,rot:rot||0});Eco.save();return true;},
+  clear(){Eco.props=[];rebuildProps();Eco.save();},
+  rebuild:rebuildProps
+};
 /* 盘缘刻度 */
 {
   const tickGeo=new THREE.BoxGeometry(0.055,0.02,0.30);
@@ -6334,6 +6416,7 @@ applyQuality(quality);
 })();
 
 /* ===== 启动 ===== */
+rebuildProps();
 animate();
 setTimeout(()=>{const ld=document.getElementById('loader');if(ld)ld.classList.add('off');},4000);
 if(reduced)setPaused(true);
