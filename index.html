@@ -164,6 +164,25 @@
     border:1px solid rgba(216,184,120,.22);color:var(--dim);font-size:11px;letter-spacing:.12em;
     padding:7px 12px;border-radius:2px;cursor:pointer;opacity:.85;user-select:none}
   #ecoReset:hover{color:var(--gold);opacity:1}
+  /* 开放摆件：左侧道具库 + 选中操作条 */
+  #propBox{position:fixed;left:40px;top:96px;z-index:5;display:flex;flex-direction:column;gap:7px;
+    padding:10px 12px;border:1px solid rgba(216,184,120,.22);border-radius:2px;
+    background:rgba(8,10,14,.52);color:var(--ink);user-select:none;max-width:158px}
+  #propBox .pb-title{font-size:11px;letter-spacing:.14em;color:var(--dim)}
+  #propBox .pb-row{display:flex;flex-wrap:wrap;gap:6px}
+  #propBox button{appearance:none;background:rgba(216,184,120,.06);border:1px solid rgba(216,184,120,.18);
+    color:var(--dim);font-size:11px;letter-spacing:.08em;padding:6px 9px;border-radius:2px;cursor:pointer}
+  #propBox button:hover{color:var(--ink)}
+  #propBox button.on{color:var(--gold);border-color:var(--gold);background:rgba(216,184,120,.12)}
+  #propBox .pb-clear{width:100%;text-align:center}
+  #propBar{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:6;display:none;
+    gap:8px;padding:8px 12px;border:1px solid rgba(216,184,120,.22);border-radius:2px;
+    background:rgba(8,10,14,.82);color:var(--ink)}
+  #propBar.on{display:flex}
+  #propBar button{appearance:none;background:rgba(216,184,120,.06);border:1px solid rgba(216,184,120,.18);
+    color:var(--ink);font-size:11px;letter-spacing:.1em;padding:6px 12px;border-radius:2px;cursor:pointer}
+  #propBar button:hover{color:var(--gold)}
+  #propBar #pbDelete{border-color:rgba(190,90,70,.35);color:#d98a7a}
   #paused{top:96px}
   @media (max-width:640px){
     #music{top:18px;right:16px;gap:9px;padding:7px 9px}
@@ -239,6 +258,23 @@
   <span class="dl">晨昏</span>
   <input id="dayRange" type="range" min="0" max="1000" value="320" aria-label="日内时间">
   <span id="dayLabel">清晨</span>
+</div>
+<div id="propBox">
+  <div class="pb-title">摆件 · 选后点盘面落位</div>
+  <div class="pb-row">
+    <button type="button" data-p="flower">花木</button>
+    <button type="button" data-p="stone">石头</button>
+    <button type="button" data-p="lantern">灯笼</button>
+    <button type="button" data-p="bench">座椅</button>
+    <button type="button" data-p="fence">篱笆</button>
+    <button type="button" data-p="basin">水钵</button>
+  </div>
+  <button type="button" class="pb-clear" id="propClear">清空摆件</button>
+</div>
+<div id="propBar">
+  <button type="button" id="pbRotate">旋转</button>
+  <button type="button" id="pbDelete">删除</button>
+  <button type="button" id="pbDone">完成</button>
 </div>
 
 <!-- ===== 音乐：五首原创，默认静音，需点击后播放 ===== -->
@@ -3116,9 +3152,11 @@ function rebuildProps(){
     centerStage.add(m);
   }
 }
-/* 摆件操作钩子：供后续开放摆件面板调用（本轮不挂画布拖拽监听，避免与环绕/暂停点击冲突） */
+/* 摆件操作钩子：放置 / 删除 / 旋转 / 清空 / 重建，布局写入本地存档 */
 window.__stageProps={
-  add(kind,x,z,rot){if(!propLegal(x,z))return false;const m=buildStageProp(kind);m.position.set(x,0,z);m.rotation.y=rot||0;centerStage.add(m);Eco.props.push({kind,x,z,rot:rot||0});Eco.save();return true;},
+  add(kind,x,z,rot){if(!propLegal(x,z))return false;const m=buildStageProp(kind);m.position.set(x,0,z);m.rotation.y=rot||0;m.userData.propRef={kind,x,z,rot:rot||0};centerStage.add(m);Eco.props.push(m.userData.propRef);Eco.save();return m;},
+  remove(grp){if(!grp||!grp.userData.propRef)return;const i=Eco.props.indexOf(grp.userData.propRef);if(i>=0)Eco.props.splice(i,1);centerStage.remove(grp);Eco.save();},
+  rotate(grp){if(!grp||!grp.userData.propRef)return;const r=grp.userData.propRef;r.rot=(r.rot||0)+Math.PI/4;grp.rotation.y=r.rot;Eco.save();},
   clear(){Eco.props=[];rebuildProps();Eco.save();},
   rebuild:rebuildProps
 };
@@ -5989,8 +6027,41 @@ function heartUpdate(){
 
 /* ===== 交互 ===== */
 let dragging=false,moved=0,lx=0,ly=0,tappedCat=false,tappedEgg=false,tapHeart=false;
+/* ===== 开放摆件交互：放置模式 / 选中摆件 ===== */
+let placing=null,selProp=null;
+const _propPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+const _propPt=new THREE.Vector3();
+function groundPoint(){
+  _ndc.set(mouseX/innerWidth*2-1,-(mouseY/innerHeight)*2+1);
+  raycaster.setFromCamera(_ndc,camera);
+  return raycaster.ray.intersectPlane(_propPlane,_propPt)?_propPt.clone():null;
+}
+function hitProp(){
+  _ndc.set(mouseX/innerWidth*2-1,-(mouseY/innerHeight)*2+1);
+  raycaster.setFromCamera(_ndc,camera);
+  const hits=raycaster.intersectObject(centerStage,true);
+  for(const h of hits){let o=h.object;while(o&&!o.userData.propRef)o=o.parent;if(o)return o;}
+  return null;
+}
+function clearSel(){
+  if(selProp)selProp.scale.setScalar(1);
+  selProp=null;
+  const bar=document.getElementById('propBar');if(bar)bar.classList.remove('on');
+}
+function selectProp(g){clearSel();selProp=g;g.scale.setScalar(1.06);document.getElementById('propBar').classList.add('on');}
+function doPlace(){
+  const pt=groundPoint();if(!pt)return;
+  const x=Math.round(pt.x/0.5)*0.5,z=Math.round(pt.z/0.5)*0.5;
+  if(!propLegal(x,z))return;
+  window.__stageProps.add(placing,x,z,Math.random()*TAU);
+}
 canvas.addEventListener('pointerdown',e=>{
   mouseX=e.clientX;mouseY=e.clientY;tappedCat=false;
+  /* 放置模式：不触发彩蛋与环绕，pointerup 落位 */
+  if(placing){dragging=false;moved=0;return;}
+  const hp=hitProp();
+  if(hp){selectProp(hp);tappedEgg=true;dragging=false;moved=0;return;}
+  clearSel();
   /* 点中心星盘：召唤星愿之心 */
   tapHeart=Math.hypot(mouseX-innerWidth/2,mouseY-innerHeight/2)<74;
   /* 点到猫：它会抬头、踩奶，并溅起一小簇季节花瓣 */
@@ -6033,8 +6104,9 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerleave',()=>{mouseX=-1e4;mouseY=-1e4;});
 canvas.addEventListener('pointerup',e=>{
   dragging=false;canvas.classList.remove('dragging');
-  if(moved<6&&tapHeart)heartStart();           // 轻点中心：召唤星愿之心
-  else if(moved<6&&!tappedCat&&!tappedEgg)setPaused(!paused); // 轻点暂停/继续（点猫/稻草人时不触发）
+  if(placing){if(moved<6)doPlace();}            // 放置模式：轻点盘面落位
+  else if(moved<6&&tapHeart)heartStart();       // 轻点中心：召唤星愿之心
+  else if(moved<6&&!tappedCat&&!tappedEgg)setPaused(!paused); // 轻点暂停/继续（点猫/稻草人/摆件时不触发）
   tappedCat=false;tapHeart=false;
 });
 canvas.addEventListener('wheel',e=>{
@@ -6048,6 +6120,9 @@ canvas.addEventListener('wheel',e=>{
   let eggBuf='';
   window.addEventListener('keydown',e=>{
     if(e.code==='Space'){e.preventDefault();setPaused(!paused);}
+    if(e.code==='Escape'){placing=null;clearSel();propBtns.forEach(x=>x.classList.remove('on'));}
+    else if((e.code==='Delete'||e.code==='Backspace')&&selProp){window.__stageProps.remove(selProp);clearSel();}
+    else if(e.code==='KeyR'&&selProp){window.__stageProps.rotate(selProp);}
     if(e.key&&/^[a-zA-Z]$/.test(e.key)){
       eggBuf=(eggBuf+e.key.toLowerCase()).slice(-12);
       if(eggBuf.endsWith('christmas')||eggBuf.endsWith('xmas')){location.href='圣诞树.html';}
@@ -6105,6 +6180,25 @@ if(ecoResetBtn)ecoResetBtn.addEventListener('click',()=>{
     location.reload();
   }
 });
+/* 摆件面板：选件进入放置模式；操作条旋转 / 删除 / 完成 */
+const propBox=document.getElementById('propBox');
+const propBtns=propBox?propBox.querySelectorAll('button[data-p]'):[];
+propBtns.forEach(b=>b.addEventListener('click',()=>{
+  const k=b.dataset.p;
+  if(placing===k){placing=null;b.classList.remove('on');}
+  else{placing=k;clearSel();propBtns.forEach(x=>x.classList.toggle('on',x===b));}
+}));
+const propClear=document.getElementById('propClear');
+if(propClear)propClear.addEventListener('click',()=>{
+  window.__stageProps.clear();clearSel();placing=null;
+  propBtns.forEach(x=>x.classList.remove('on'));
+});
+const pbRotate=document.getElementById('pbRotate'),
+  pbDelete=document.getElementById('pbDelete'),
+  pbDone=document.getElementById('pbDone');
+if(pbRotate)pbRotate.addEventListener('click',()=>{if(selProp)window.__stageProps.rotate(selProp);});
+if(pbDelete)pbDelete.addEventListener('click',()=>{if(selProp)window.__stageProps.remove(selProp);clearSel();});
+if(pbDone)pbDone.addEventListener('click',()=>{clearSel();placing=null;propBtns.forEach(x=>x.classList.remove('on'));});
 let savedTheme=0;try{savedTheme=localStorage.getItem('sq_theme')||'0';}catch(e){}
 let __qm=location.search.match(/[?&]theme=(\d)/); if(__qm) savedTheme=__qm[1];
 applyThemeUI(savedTheme);
