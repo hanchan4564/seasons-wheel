@@ -2046,6 +2046,7 @@ const FARM_SKIN=new THREE.MeshLambertMaterial({color:0xdfb58e,fog:false});
 const FARM_TOOL=new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false});
 const FARM_EYE=new THREE.MeshLambertMaterial({color:0x2a2118,fog:false});
 const FARM_IRON=new THREE.MeshLambertMaterial({color:0x4a463f,fog:false});
+const FARM_WHITE=new THREE.MeshLambertMaterial({color:0xd9d2c2,fog:false});
 const farmArmGeo=new THREE.CylinderGeometry(0.028,0.026,0.24,5);
 const farmLegGeo=new THREE.CylinderGeometry(0.032,0.036,0.22,5);
 const farmShoeGeo=new THREE.BoxGeometry(0.07,0.05,0.11);
@@ -2109,7 +2110,9 @@ function makeFarmer(ang,rad,idx){
   brim.position.y=0.08;
   const hat=new THREE.Mesh(new THREE.ConeGeometry(0.11,0.10,12),hatMat);
   hat.position.y=0.15;
-  head.add(eyeL,eyeR,brim,hat);
+  const beard=new THREE.Mesh(new THREE.ConeGeometry(0.032,0.07,6),FARM_WHITE);
+  beard.position.set(0,-0.055,0.07);beard.rotation.x=Math.PI;beard.visible=false;
+  head.add(eyeL,eyeR,brim,hat,beard);
   /* 农具：锄（除草）/ 斧（砍柴）/ 篮（修剪采摘），按工种切换显隐 */
   const hoe=new THREE.Group();
   const hoeHandle=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.72,5),FARM_TOOL);
@@ -2140,7 +2143,7 @@ function makeFarmer(ang,rad,idx){
   const sz=typeof saved.z==='number'?saved.z:Math.sin(ang)*rad;
   h.position.set(sx,0.02,sz);
   const mood=0.55+((idx*37)%10)/10*0.30;   /* 性格权重（勤快/悠闲），接口预留 */
-  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,mood,energy:1,age:saved.age,gender:saved.gender,partner:saved.partner,seed:saved.seed,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,axe,basket,armL,armR};
+  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,mood,energy:1,age:saved.age,gender:saved.gender,partner:saved.partner,seed:saved.seed,hatBase:out.hat,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,brim,beard,hoe,axe,basket,armL,armR};
   bgGroup.add(h);bgFarmers.push(h);
   return h;
 }
@@ -2252,8 +2255,19 @@ function farmersUpdate(t,dt,season){
     u.axe.visible=kind==='chop';
     u.basket.visible=kind==='prune';
     if(isChild){u.hoe.visible=u.axe.visible=u.basket.visible=false;}
+    /* 老人：灰白须发、帽檐转灰、体态微弓 */
+    u.beard.visible=isOld;
+    const hc=isOld?0xd9d2c2:u.hatBase;
+    u.hat.material.color.setHex(hc);u.brim.material.color.setHex(hc);
     if(isChild){
-      /* 孩童不劳作：在原地附近轻轻张望晃动，跟随成人气息 */
+      /* 孩童不劳作：跟随最近成人，在其身旁小范围徘徊张望 */
+      let adult=null,ad=1e9;
+      for(const o of bgFarmers){if(o===f||!o.visible)continue;const ou=o.userData;if(ou.stage==='child')continue;const od=Math.hypot(o.position.x-f.position.x,o.position.z-f.position.z);if(od<ad){ad=od;adult=o;}}
+      if(adult){
+        const dx=adult.position.x-f.position.x,dz=adult.position.z-f.position.z,d=Math.hypot(dx,dz)||1e-3;
+        if(ad>0.55){const sp=0.8*dt;f.position.x+=dx/d*sp;f.position.z+=dz/d*sp;f.rotation.y=-Math.atan2(dz,dx);}
+        else f.rotation.y=Math.sin(t*0.6+u.seed)*0.6;
+      }
       u.head.rotation.y=Math.sin(t*0.9+u.seed)*0.5;
       u.body.rotation.x=0;u.body.position.y=0.42;
       u.armL.rotation.x=0.3;u.armR.rotation.x=0.3;
@@ -2308,10 +2322,18 @@ function farmersUpdate(t,dt,season){
       if(u.workT>4.0){u.state='rest';u.restT=0;}
     }else if(u.state==='rest'){
       u.restT+=dt;
-      u.body.rotation.x=0;u.body.position.y=0.42;
+      u.body.rotation.x=isOld?0.15:0;u.body.position.y=0.42;
       u.head.position.set(0,0.78,0);
       u.head.rotation.y=Math.sin(t*0.8+u.seed)*0.4;   /* 歇息时左右张望 */
       u.armL.rotation.x=0.6;u.armR.rotation.x=0.6;    /* 抱臂 */
+      /* 夫妻歇息靠拢：配偶存活时靠近到半步距离 */
+      if(u.partner!=null){
+        const sp=farmerByIdx(u.partner);
+        if(sp&&sp.visible){
+          const dx=sp.position.x-f.position.x,dz=sp.position.z-f.position.z,d=Math.hypot(dx,dz)||1e-3;
+          if(d>0.45){const mv=0.5*dt;f.position.x+=dx/d*mv;f.position.z+=dz/d*mv;}
+        }
+      }
       if(u.restT>3.0)u.state='idle';
     }
     /* 群体避让：简单半径分离，不叠人 */
