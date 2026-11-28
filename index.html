@@ -1292,6 +1292,17 @@ function _lmBox(w,h,d,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.BoxGeometr
 function _lmCyl(rt,rb,h,seg,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);m.position.set(x,y,z);grp.add(m);return m;}
 function _lmCone(r,h,seg,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,seg),mat);m.position.set(x,y,z);grp.add(m);return m;}
 function _lmSph(r,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat);m.position.set(x,y,z);grp.add(m);return m;}
+/* 复用构件：深色窗板 + 十字木格栅分格 */
+function _lmWindow(x,y,z,w,h,grp){
+  _lmBox(w,h,0.06,LM.arch,x,y,z,grp);
+  _lmBox(0.03,h,0.03,LM.woodDark,x,y,z+0.035,grp);
+  _lmBox(w,0.03,0.03,LM.woodDark,x,y,z+0.035,grp);
+}
+/* 飞檐翘角：檐板外端上挑小角板，side=±1 左右 */
+function _lmTip(side,x,y,z,grp){
+  const t=_lmBox(0.22,0.07,0.16,LM.eaves,x,y,z,grp);
+  t.rotation.z=side*0.55;return t;
+}
 function placeLandmark(grp,season,ang,rad){
   grp.position.set(Math.cos(ang)*rad,0.12,Math.sin(ang)*rad);
   grp.scale.setScalar(1.22);
@@ -1334,13 +1345,15 @@ function buildCastle(){
   /* 连廊：主配楼间窄墙 */
   _lmBox(0.70,1.00,0.50,LM.stoneDark,-0.90,0.80,0,g);
   _lmBox(0.70,0.90,0.50,LM.stoneDark,0.90,0.75,0,g);
-  /* 门窗：拱门 + 各层窄窗 */
+  /* 门窗：拱门 + 各层窄窗（窗带木格栅） */
   _lmBox(0.50,0.95,0.10,LM.arch,0,0.62,0.62,g);
-  _lmBox(0.22,0.30,0.06,LM.arch,-0.30,1.95,0.52,g);
-  _lmBox(0.22,0.30,0.06,LM.arch,0.30,1.95,0.52,g);
-  _lmBox(0.20,0.26,0.06,LM.arch,0,2.85,0.42,g);
-  _lmBox(0.22,0.30,0.06,LM.arch,-1.60,1.05,0.54,g);
-  _lmBox(0.22,0.30,0.06,LM.arch,1.60,0.95,0.52,g);
+  _lmWindow(-0.30,1.95,0.52,0.22,0.30,g);
+  _lmWindow(0.30,1.95,0.52,0.22,0.30,g);
+  _lmWindow(0,2.85,0.42,0.20,0.26,g);
+  _lmWindow(-1.60,1.05,0.54,0.22,0.30,g);
+  _lmWindow(1.60,0.95,0.52,0.22,0.30,g);
+  /* 一层檐角上挑 */
+  _lmTip(-1,-0.78,1.56,0,g);_lmTip(1,0.78,1.56,0,g);
   /* 台前石阶三级 */
   for(let s=0;s<3;s++)_lmBox(1.4,0.16,0.5,LM.stone,0,0.08+s*0.16,1.05+s*0.45,g);
   /* 松树两棵：斜干 + 深绿冠团 */
@@ -1366,9 +1379,9 @@ function buildBambooHouse(){
   /* 烟囱：旧木屋后侧石筒 */
   _lmCyl(0.10,0.12,0.55,6,LM.stoneDark,-0.45,1.55,-0.30,g);
   _lmBox(0.20,0.08,0.20,LM.stoneDark,-0.45,1.85,-0.30,g);
-  /* 门 + 小窗 */
+  /* 门 + 小窗（窗带木格栅） */
   _lmBox(0.42,0.78,0.08,LM.arch,0,0.39,0.66,g);
-  _lmBox(0.3,0.3,0.06,LM.arch,-0.5,0.8,0.65,g);
+  _lmWindow(-0.5,0.8,0.65,0.30,0.30,g);
   /* 石阶三级通到门口 */
   for(let s=0;s<3;s++)_lmBox(1.0,0.16,0.5,LM.stone,0,0.08+s*0.16,0.9+s*0.45,g);
   /* 竹丛：屋旁两侧密竹，高低错落 */
@@ -1383,6 +1396,13 @@ function buildBambooHouse(){
   /* 屋旁岩石 */
   _lmSph(0.30,LM.stone,-1.0,0.15,0.8,g);
   _lmSph(0.22,LM.stoneDark,1.0,0.12,0.85,g);
+  /* 瓜架：两立柱 + 顶横杆 + 藤叶团 */
+  _lmCyl(0.03,0.03,1.2,5,LM.wood,-1.25,0.6,0.9,g);
+  _lmCyl(0.03,0.03,1.2,5,LM.wood,-0.85,0.6,0.9,g);
+  _lmBox(0.5,0.05,0.05,LM.wood,-1.05,1.2,0.9,g);
+  _lmSph(0.18,LM.leaf,-1.05,1.25,0.9,g);
+  /* 院前柴堆：短木段两摞堆叠 */
+  for(let c=0;c<3;c++){const log=_lmCyl(0.07,0.07,0.5,6,LM.woodDark,2.25,0.10+c*0.13,0.55,g);log.rotation.z=Math.PI/2;}
   return g;
 }
 /* 夏·水上架空木屋群落 + 叠层挑楼 + 栈桥栏杆 + 水车 + 棕榈（参考图2） */
@@ -1399,17 +1419,20 @@ function buildStiltHouse(){
   for(const px of [-0.55,0,0.55])_lmBox(0.07,1.02,0.07,LM.wood,px,1.90,0.56,g);
   /* 二层悬挑楼阁：向前探出，前后退进 */
   _lmBox(1.10,0.80,0.90,LM.wood,0,2.86,0.10,g);
-  /* 二层正面小窗 */
-  _lmBox(0.30,0.34,0.06,LM.arch,-0.32,2.86,0.57,g);
-  _lmBox(0.30,0.34,0.06,LM.arch,0.32,2.86,0.57,g);
+  /* 二层正面小窗（窗带木格栅） */
+  _lmWindow(-0.32,2.86,0.57,0.30,0.34,g);
+  _lmWindow(0.32,2.86,0.57,0.30,0.34,g);
   /* 双坡屋顶：两片斜板，坡向左右，前后挑檐 */
   const roofA=Math.atan2(0.42,0.62);
   const r1=_lmBox(0.66,0.09,1.18,LM.roof,-0.33,3.30,0.10,g);r1.rotation.z=roofA;
   const r2=_lmBox(0.66,0.09,1.18,LM.roof,0.33,3.30,0.10,g);r2.rotation.z=-roofA;
   _lmBox(0.09,0.09,1.18,LM.eaves,0,3.36,0.10,g); /* 主楼屋脊 */
+  _lmTip(-1,-0.66,3.34,0.10,g);_lmTip(1,0.66,3.34,0.10,g); /* 主楼檐角上挑 */
   /* 一层外廊栏杆：正面两根立柱 + 一道横栏 */
   for(const px of [-0.72,0.72])_lmBox(0.07,0.55,0.07,LM.wood,px,1.62,0.78,g);
   _lmBox(1.5,0.07,0.07,LM.wood,0,1.86,0.78,g);
+  /* 廊下垂挂作物团 */
+  for(let k=-1;k<=1;k++)_lmSph(0.06,LM.leaf,k*0.35,1.74,0.78,g);
   /* 栈桥：向外三级板道，两侧扶手 */
   for(let d=0;d<3;d++)_lmBox(0.5,0.09,0.95,LM.wood,0,1.30,1.05+d*0.92,g);
   for(const px of [-0.24,0.24])for(let d=0;d<3;d++)_lmBox(0.06,0.42,0.06,LM.wood,px,1.50,1.10+d*0.92,g);
@@ -1465,8 +1488,8 @@ function buildTemple(){
   /* 一层木墙 + 前立柱分格 + 小窗 */
   _lmBox(1.2,0.95,1.0,LM.wood,tx,1.10,0,g);
   for(const px of [-0.45,0,0.45])_lmBox(0.07,0.95,0.07,LM.woodDark,tx+px,1.10,0.52,g);
-  _lmBox(0.28,0.30,0.06,LM.arch,tx-0.28,1.12,0.53,g);
-  _lmBox(0.28,0.30,0.06,LM.arch,tx+0.28,1.12,0.53,g);
+  _lmWindow(tx-0.28,1.12,0.53,0.28,0.30,g);
+  _lmWindow(tx+0.28,1.12,0.53,0.28,0.30,g);
   /* 二层挑楼 */
   _lmBox(1.0,0.75,0.85,LM.woodDark,tx,1.92,0.05,g);
   /* 飞檐：两片斜板前后出挑 */
@@ -1474,9 +1497,13 @@ function buildTemple(){
   const e1=_lmBox(0.62,0.08,1.15,LM.eaves,tx-0.26,2.36,0.05,g);e1.rotation.z=ea;
   const e2=_lmBox(0.62,0.08,1.15,LM.eaves,tx+0.26,2.36,0.05,g);e2.rotation.z=-ea;
   _lmBox(0.09,0.09,1.15,LM.roof,tx,2.42,0.05,g); /* 木楼屋脊 */
+  _lmTip(-1,tx-0.52,2.40,0.05,g);_lmTip(1,tx+0.52,2.40,0.05,g); /* 木楼檐角上挑 */
   /* 外廊栏杆：立柱 + 横栏 */
   for(const px of [-0.62,0.62])_lmBox(0.06,0.45,0.06,LM.woodDark,tx+px,0.85,0.62,g);
   _lmBox(1.3,0.06,0.06,LM.woodDark,tx,1.06,0.62,g);
+  /* 外侧经幡杆：立杆 + 垂挂小幡片 */
+  _lmCyl(0.02,0.02,1.0,5,LM.woodDark,tx+0.72,0.5,0.30,g);
+  for(let k=0;k<3;k++)_lmBox(0.10,0.08,0.02,LM.buddha,tx+0.72,0.86-k*0.12,0.32,g);
   /* 石径三级通到佛前 */
   for(let s=0;s<3;s++)_lmBox(1.1,0.16,0.5,LM.stone,bx,0.08+s*0.16,0.75+s*0.45,g);
   /* 旁侧杂草叶团与岩石 */
@@ -1504,6 +1531,8 @@ function buildRuin(){
   /* 墙顶薄雪覆面 */
   _lmBox(1.72,0.06,0.42,LM.ruinSnow,-1.20,2.31,0,g);
   _lmBox(1.32,0.06,0.38,LM.ruinSnow,0.15,1.41,0.25,g);
+  /* 残墙顶下垂冰棱 */
+  for(let k=0;k<3;k++){const ic=_lmCone(0.03,0.16,5,LM.ruinSnow,-1.45+k*0.25,2.24,0.70,g);ic.rotation.x=Math.PI;}
   /* 乱石残骸堆：大小不一散落 */
   const rk=[[-0.50,0.20,0.70,0.34],[0.90,0.15,0.60,0.26],[-0.90,0.12,0.85,0.22],[0.40,0.12,0.85,0.18],[1.05,0.10,0.40,0.20],[-0.10,0.10,0.55,0.16]];
   for(const [x,y,z,r] of rk)_lmSph(r,LM.stoneDark,x,y,z,g);
