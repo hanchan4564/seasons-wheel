@@ -118,6 +118,18 @@
   #music input[type=range]::-moz-range-thumb{width:8px;height:8px;border:0;border-radius:50%;background:var(--gold)}
   #music input[type=range]:focus-visible{outline:1px solid var(--gold);outline-offset:2px}
   #music.off #mMute{color:var(--gold);opacity:1}
+  /* 日内时间条：左下，与右上音乐错开 */
+  #daybar{position:fixed;left:40px;bottom:36px;z-index:5;display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border:1px solid rgba(216,184,120,.22);border-radius:2px;
+    background:rgba(8,10,14,.52);color:var(--ink);user-select:none}
+  #daybar span{font-size:11px;letter-spacing:.12em;opacity:.85;white-space:nowrap}
+  #daybar input[type=range]{appearance:none;width:120px;height:14px;background:none;cursor:pointer}
+  #daybar input[type=range]::-webkit-slider-runnable-track{height:1px;background:rgba(216,184,120,.28)}
+  #daybar input[type=range]::-webkit-slider-thumb{appearance:none;width:8px;height:8px;margin-top:-4px;
+    border-radius:50%;background:var(--gold)}
+  #daybar input[type=range]::-moz-range-track{height:1px;background:rgba(216,184,120,.28)}
+  #daybar input[type=range]::-moz-range-thumb{width:8px;height:8px;border:0;border-radius:50%;background:var(--gold)}
+  #daybar input[type=range]:focus-visible{outline:1px solid var(--gold);outline-offset:2px}
   #music .list{position:absolute;top:calc(100% + 8px);right:0;min-width:214px;max-height:62vh;overflow-y:auto;
     border:1px solid rgba(216,184,120,.22);background:rgba(8,10,14,.94);
     padding:6px 0;display:none}
@@ -223,6 +235,11 @@
 <div id="hint">拖动 · 环视星盘<br>滚轮 · 推近拉远<br>轻点中心 · 星愿之心<br>空格 · 暂停时光</div>
 <div id="year">轮转 · 第一年</div>
 <div id="paused">时光已驻</div>
+<div id="daybar">
+  <span class="dl">晨昏</span>
+  <input id="dayRange" type="range" min="0" max="1000" value="320" aria-label="日内时间">
+  <span id="dayLabel">清晨</span>
+</div>
 
 <!-- ===== 音乐：五首原创，默认静音，需点击后播放 ===== -->
 <div id="music" class="off">
@@ -4784,6 +4801,12 @@ let simTime=0;
 let _skipIntro=false;try{_skipIntro=sessionStorage.getItem('sq_skipintro')==='1';sessionStorage.removeItem('sq_skipintro');}catch(e){}
 let introT=_skipIntro?1:0;   // 开场推镜进度 0→1
 let paused=false;
+/* 日内时间：0=凌晨 0.22=清晨 0.5=正午 0.78=黄昏 0.95=深夜；滑块拖动时锁定自动流转 */
+let dayT=0.32,dayLock=false;
+const DAY_SECONDS=200;
+function dayLightCurve(t){const x=Math.cos((t-0.5)*TAU);return Math.max(0.12,(x+1)/2);}
+function dayWarmth(t){const m=Math.min(Math.abs(t-0.22),Math.abs(t-0.78));return Math.max(0,1-m/0.18);}
+const _warmCol=new THREE.Color(0xff9a5a);
 let runPhase=0,catWinter=0;
 let userAz=0,userEl=0,zoom=1;
 const reduced=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -4855,6 +4878,12 @@ function setPaused(v){
   paused=v;pausedEl.classList.toggle('on',v);
   if(window.__musicSync)window.__musicSync(v);
 }
+/* 日内时间滑块：拖动锁定自动流转，松开恢复；标签随时段切换 */
+const dayRange=document.getElementById('dayRange');
+const dayLabel=document.getElementById('dayLabel');
+function dayLabelText(t){return t<0.15?'深夜':t<0.35?'清晨':t<0.62?'正午':t<0.85?'黄昏':'深夜';}
+dayRange.addEventListener('input',()=>{dayLock=true;dayT=dayRange.value/1000;dayLabel.textContent=dayLabelText(dayT);});
+dayRange.addEventListener('change',()=>{dayLock=false;});
 
 let theme=0;
 function applyTheme(t){
@@ -5109,6 +5138,7 @@ function animate(){
     simTime+=dt;
     totalAngle+=dt*TAU/REV_SECONDS;
     runPhase+=dt*10;
+    if(!dayLock)dayT=(dayT+dt/DAY_SECONDS)%1;
   }
   const rev=Math.floor(totalAngle/TAU);
   const pAngle=totalAngle%TAU;
@@ -5213,6 +5243,13 @@ function animate(){
     scene.fog.near=18;scene.fog.far=44;
     key.intensity=0.95;hemi.intensity=0.6;
   }
+  /* 日内时间：在季节光照上叠加晨昏强度/暖度/雾浓，不推翻季节色板 */
+  const dl=dayLightCurve(dayT),warm=dayWarmth(dayT);
+  key.intensity*=(0.35+0.65*dl);
+  hemi.intensity*=(0.40+0.60*dl);
+  if(warm>0.02)key.color.lerp(_warmCol,warm*0.35);
+  scene.fog.far*=(1.15-0.30*dl);
+  if(!dayLock){dayRange.value=Math.round(dayT*1000);dayLabel.textContent=dayLabelText(dayT);}
   landmarksUpdate(w);
   seasonUniforms.uWinterA.value=A===4?1:0;
   seasonUniforms.uWinterB.value=B===4?1:0;
