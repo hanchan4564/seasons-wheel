@@ -220,6 +220,9 @@
   .egg-hint{margin:6px 0 0;font-size:12.5px;color:#a06a3a;min-height:18px}
   #inspectUI{position:fixed;inset:0;pointer-events:none;z-index:35;opacity:0;transition:opacity .35s ease}
   #inspectUI.show{opacity:1}
+  #npcBubble{position:fixed;transform:translate(-50%,-120%);pointer-events:none;z-index:30;background:rgba(20,24,18,.86);border:1px solid rgba(201,168,106,.55);color:#f3ecd8;font:12px/1.5 'Noto Serif SC',serif;padding:5px 10px;border-radius:10px;white-space:nowrap;opacity:0;transition:opacity .25s ease;max-width:60vw}
+  #npcBubble.show{opacity:1}
+  #npcBubble::after{content:'';position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid rgba(20,24,18,.86)}
   #inspectDim{position:absolute;inset:0;background:radial-gradient(ellipse 62% 58% at 50% 46%,rgba(4,10,22,.12) 0%,rgba(4,10,22,.62) 100%)}
   #inspectExit{position:absolute;top:18px;right:18px;width:34px;height:34px;border:none;border-radius:50%;
     background:rgba(10,20,38,.62);color:#e8f1ff;font-size:18px;cursor:pointer;line-height:1;
@@ -366,6 +369,7 @@ setTimeout(function(){var l=document.getElementById('loader');if(l&&!l.dataset.o
   <button id="inspectExit" type="button" aria-label="退出检视">×</button>
   <div id="inspectHint">拖动环绕查看 · 滚轮缩放 · 点击胸口纸条阅笺</div>
 </div>
+<div id="npcBubble" class="npc-bubble" aria-hidden="true"></div>
 
 <script src="three-main.js?v=1"></script>
 <script src="assets/models/GLTFLoader.js?v=1"></script>
@@ -2123,12 +2127,20 @@ function makeFarmer(ang,rad,idx){
   basket.position.set(-0.17,0.30,0);basket.visible=false;
   h.add(legL,legR,shoeL,shoeR,body,belt,armL,armR,head,hoe,axe,basket);
   h.scale.setScalar(1.32*(0.96+(idx%3)*0.03));
-  const saved=Eco.villagers.find(v=>v.idx===idx)||{};
+  let saved=Eco.villagers.find(v=>v.idx===idx);
+  if(!saved){saved={idx,jobs:0};Eco.villagers.push(saved);}
+  /* 生命周期默认值（兼容旧存档缺字段） */
+  if(typeof saved.gender!=='number')saved.gender=idx%2;
+  if(typeof saved.age!=='number')saved.age=18+((idx*13)%11);
+  if(typeof saved.partner!=='number'&&saved.partner!==null)saved.partner=null;
+  if(typeof saved.died!=='boolean')saved.died=false;
+  if(typeof saved.seed!=='number')saved.seed=Math.random()*TAU;
+  if(typeof saved.dieAge!=='number')saved.dieAge=68+((idx*7)%11);
   const sx=typeof saved.x==='number'?saved.x:Math.cos(ang)*rad;
   const sz=typeof saved.z==='number'?saved.z:Math.sin(ang)*rad;
   h.position.set(sx,0.02,sz);
   const mood=0.55+((idx*37)%10)/10*0.30;   /* 性格权重（勤快/悠闲），接口预留 */
-  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,mood,energy:1,age:0,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,axe,basket,armL,armR};
+  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,mood,energy:1,age:saved.age,gender:saved.gender,partner:saved.partner,seed:saved.seed,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,axe,basket,armL,armR};
   bgGroup.add(h);bgFarmers.push(h);
   return h;
 }
@@ -2145,6 +2157,77 @@ function bumpVillager(f){
   if(!v){v={idx:u.idx,jobs:0};Eco.villagers.push(v);}
   v.jobs=u.jobs;
 }
+/* ===== 生命周期：本地年份驱动的出生—婚配—衰老—死亡—繁衍（纯前端本地模拟，不接后端） ===== */
+const bgGraves=new THREE.Group();bgGroup.add(bgGraves);
+function createGrave(x,z){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.10,0.20),LM.stoneDark);base.position.y=0.05;
+  const plaque=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.22,0.04),LM.woodDark);plaque.position.y=0.23;
+  g.add(base,plaque);g.position.set(x,0.02,z);bgGraves.add(g);return g;
+}
+const LIFE={childMax:13, oldAt:60, maxPop:8};
+function lifeStage(age){return age<LIFE.childMax?'child':age<LIFE.oldAt?'adult':'old';}
+/* 按台账查找场景农人 */
+function farmerByIdx(idx){return bgFarmers.find(f=>f.userData.idx===idx)||null;}
+function lifeCycleYear(rev){
+  const alive=Eco.villagers.filter(v=>!v.died);
+  /* 年龄增长 + 阶段/死亡判定 */
+  for(const v of alive){
+    v.age+=1;
+    if(v.age>=(v.dieAge||72)){v.died=true;}
+  }
+  const living=Eco.villagers.filter(v=>!v.died);
+  /* 婚配：成年、未婚、异性两两配对 */
+  const singles=living.filter(v=>lifeStage(v.age)==='adult'&&v.age>=18&&v.partner==null);
+  for(let i=0;i<singles.length;i++){
+    const a=singles[i];if(a.partner!=null)continue;
+    for(let j=i+1;j<singles.length;j++){
+      const b=singles[j];if(b.partner!=null)continue;
+      if(a.gender!==b.gender){
+        a.partner=b.idx;b.partner=a.idx;a.marryYear=rev;b.marryYear=rev;break;
+      }
+    }
+  }
+  /* 繁衍：已婚对、结婚满 2 年、人数未超上限、间隔 3 年再生一胎 */
+  for(const a of living){
+    if(a.partner==null||a.gender===0)continue;
+    const b=living.find(x=>x.idx===a.partner);if(!b||b.died)continue;
+    const since=rev-(a.marryYear||rev);
+    const lastKid=a.lastChildYear==null?-9:(rev-a.lastChildYear);
+    if(since>=2&&living.length<LIFE.maxPop&&lastKid>=3){
+      const nidx=Eco.villagers.reduce((m,v)=>Math.max(m,v.idx),-1)+1;
+      const px=typeof a.x==='number'?a.x:Math.cos(2.61)*13.4;
+      const pz=typeof a.z==='number'?a.z:Math.sin(2.61)*13.4;
+      const ang=Math.atan2(pz,px)+(Math.random()-0.5)*0.4;
+      const rad=Math.hypot(px,pz)+(Math.random()-0.5)*0.6;
+      const child={idx:nidx,jobs:0,gender:nidx%2,age:0,partner:null,died:false,
+        seed:Math.random()*TAU,dieAge:68+((nidx*7)%11),x:Math.cos(ang)*rad,z:Math.sin(ang)*rad};
+      Eco.villagers.push(child);
+      a.lastChildYear=rev;b.lastChildYear=rev;
+      makeFarmer(ang,rad,nidx);
+    }
+  }
+}
+/* 把台账生命周期状态对齐到场景：隐藏逝者、调整尺度/农具，补立墓碑 */
+function syncLifeScene(){
+  for(const f of bgFarmers){
+    const u=f.userData;const sv=Eco.villagers.find(x=>x.idx===u.idx);
+    if(!sv)continue;
+    u.age=sv.age;u.partner=sv.partner;u.gender=sv.gender;
+    u.stage=lifeStage(sv.age);
+    if(sv.died){f.visible=false;continue;}
+    f.visible=true;
+    if(u.stage==='child')f.scale.setScalar(1.32*0.62);
+    else if(u.stage==='old')f.scale.setScalar(1.32*0.92);
+    else f.scale.setScalar(1.32*(0.96+(u.idx%3)*0.03));
+    if(u.stage==='child'){u.hoe.visible=u.axe.visible=u.basket.visible=false;}
+  }
+  for(const v of Eco.villagers){
+    if(!v.died||typeof v.x!=='number')continue;
+    const exist=bgGraves.children.some(g=>Math.hypot(g.position.x-v.x,g.position.z-v.z)<0.3);
+    if(!exist)createGrave(v.x,v.z);
+  }
+}
 /* 劳作轻量回写：除草回升肥力、砍柴缩减柴堆余量（L3 反馈到生态层） */
 function workBackwrite(task,farmer){
   if(task.plot&&task.kind==='weed')task.plot.fert=Math.min(1,task.plot.fert+0.04);
@@ -2158,12 +2241,23 @@ function workBackwrite(task,farmer){
 function farmersUpdate(t,dt,season){
   for(const f of bgFarmers){
     const u=f.userData;
+    const vsv=Eco.villagers.find(x=>x.idx===u.idx);
+    if(vsv){u.age=vsv.age;u.partner=vsv.partner;u.gender=vsv.gender;u.stage=lifeStage(vsv.age);}
+    if(vsv&&vsv.died){f.visible=false;continue;}
+    f.visible=true;
+    const isChild=u.stage==='child',isOld=u.stage==='old';
     /* 农具按工种显隐：锄—除草，斧—砍柴，篮—修剪采摘；歇息/空闲收起 */
     const kind=(u.task&&(u.state==='work'||u.state==='move'))?u.task.kind:null;
     u.hoe.visible=kind==='weed';
     u.axe.visible=kind==='chop';
     u.basket.visible=kind==='prune';
-    if(u.state==='idle'){
+    if(isChild){u.hoe.visible=u.axe.visible=u.basket.visible=false;}
+    if(isChild){
+      /* 孩童不劳作：在原地附近轻轻张望晃动，跟随成人气息 */
+      u.head.rotation.y=Math.sin(t*0.9+u.seed)*0.5;
+      u.body.rotation.x=0;u.body.position.y=0.42;
+      u.armL.rotation.x=0.3;u.armR.rotation.x=0.3;
+    }else if(u.state==='idle'){
       let best=null,bs=-1e9;
       for(const tk of farmerTasks()){const sc=scoreTask(tk,f,season);if(sc>bs){bs=sc;best=tk;}}
       u.task=best;u.state='move';
@@ -2174,7 +2268,7 @@ function farmersUpdate(t,dt,season){
       const dx=tx-f.position.x,dz=tz-f.position.z,d=Math.hypot(dx,dz)||1e-3;
       if(d<0.25){u.state='work';u.workT=0;u.workAcc=0;}
       else{
-        const sp=1.5*dt;
+        const sp=(isOld?0.9:1.5)*dt;
         f.position.x+=dx/d*sp;f.position.z+=dz/d*sp;
         f.rotation.y=-tk.ang;
         /* 步伐起伏 + 摆臂 + 躯干前倾与左右轻摆 */
@@ -2230,6 +2324,55 @@ function farmersUpdate(t,dt,season){
     /* 最后位置纳入本地存档，刷新后不挤回起点 */
     let sv=Eco.villagers.find(x=>x.idx===u.idx);
     if(sv){sv.x=Math.round(f.position.x*100)/100;sv.z=Math.round(f.position.z*100)/100;}
+  }
+}
+/* ===== NPC 本地预设对话：台词池按身份/状态/季节触发，头顶气泡跟随；不接大模型 ===== */
+const NPC_LINES={
+  greet:['今天风清气朗，好光景','地里的活儿慢慢来','歇歇脚，望望远山','日头正好，不冷不热'],
+  work:['这垄草除干净些','枝头果子该疏一疏了','柴劈干了好过冬','根扎稳了才长得旺'],
+  rest:['喝口水再接着干','今年收成看着不赖','忙完这阵就松快了','坐会儿，喘口气'],
+  couple:['今晚给你添个菜','天凉了多披件衣裳','咱娃又长高了一截','守着这田就踏实'],
+  elder:['慢些走，留神脚下','一辈辈就守着这田地','手脚稳当，别着急','日子是慢慢熬出来的'],
+  child:['我也要帮忙干活！','那边有只花蝴蝶','爹娘什么时候回来呀','我想去塘边看鸭子'],
+  harvest:['仓里的粮又满了些','今年的穗子沉实','晒场上该翻一翻'],
+  newyear:['又是新的一年了','愿来年风调雨顺','岁岁轮转，人丁兴旺']
+};
+let bubbleTalker=null,bubbleT=0;
+function pickNpcLine(u,season,rev){
+  let pool='greet';
+  if(u.stage==='child')pool='child';
+  else if(u.stage==='old')pool='elder';
+  else if(u.partner!=null)pool=Math.random()<0.5?'couple':'rest';
+  else if(u.state==='work')pool='work';
+  else if(u.state==='rest')pool='rest';
+  if(season===3&&Math.random()<0.3)pool='harvest';
+  if(rev%4===0&&Math.random()<0.25)pool='newyear';
+  const arr=NPC_LINES[pool];return arr[(Math.random()*arr.length)|0];
+}
+function npcBubbleUpdate(t,dt,season,rev){
+  if(bubbleTalker){
+    bubbleT-=dt;
+    if(bubbleT<=0||!bubbleTalker.visible){bubbleTalker=null;npcBubbleEl.classList.remove('show');}
+  }
+  if(!bubbleTalker){
+    for(const f of bgFarmers){
+      const u=f.userData;if(!f.visible)continue;
+      if(typeof u.nextTalk!=='number')u.nextTalk=1.5+Math.random()*4;
+      u.nextTalk-=dt;
+      if(u.nextTalk<=0){
+        bubbleTalker=f;bubbleT=3.4;u.nextTalk=6+Math.random()*8;
+        npcBubbleEl.textContent=pickNpcLine(u,season,rev);
+        break;
+      }
+    }
+  }
+  if(bubbleTalker){
+    bubbleTalker.getWorldPosition(_proj);_proj.y+=0.95;_proj.project(camera);
+    if(_proj.z<1){
+      const sx=(_proj.x*0.5+0.5)*innerWidth,sy=(-_proj.y*0.5+0.5)*innerHeight;
+      npcBubbleEl.style.left=sx+'px';npcBubbleEl.style.top=sy+'px';
+      npcBubbleEl.classList.add('show');
+    }else npcBubbleEl.classList.remove('show');
   }
 }
 function bgAnimalsUpdate(t,dt,w){
@@ -5008,6 +5151,7 @@ eggGo.addEventListener('click',tryEgg);
 eggInput.addEventListener('keydown',e=>{if(e.key==='Enter')tryEgg();});
 const inspectUI=document.getElementById('inspectUI');
 const inspectExit=document.getElementById('inspectExit');
+const npcBubbleEl=document.getElementById('npcBubble');
 inspectExit.addEventListener('click',()=>{inspect=false;});
 const CN_NUM=['一','二','三','四','五','六','七','八','九','十'];
 let shownSeason=-1,lastRev=-1;
@@ -5386,7 +5530,9 @@ function animate(){
     bgAnimalsUpdate(simTime,sdt,w);
     bgDucksUpdate(simTime);
     smokeUpdate(simTime);
+    syncLifeScene();
     farmersUpdate(simTime,sdt,curSeasonIdx);
+    npcBubbleUpdate(simTime,sdt,curSeasonIdx,rev);
     const springW=w[0]+w[1];
     const beamEnv=springW*0.9+w[2]*1.0+w[3]*0.45+w[4]*0.30;
     for(const bm of beamMats){bm.uniforms.uTime.value=simTime;bm.uniforms.uOpacity.value=0.30*beamEnv;}
@@ -5648,6 +5794,7 @@ function animate(){
   ringFg.setAttribute('stroke-dashoffset',((1-f)*251.33).toFixed(1));
   if(rev!==lastRev){
     lastRev=rev;
+    lifeCycleYear(rev);
     const n=rev+1;
     const stage=n<=1?'初垦':n<=3?'成长':n<=5?'丰饶':'轮作';
     yearEl.textContent='轮转 · 第'+(n<=10?CN_NUM[n-1]:n)+'年 · '+stage;
