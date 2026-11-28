@@ -1875,7 +1875,31 @@ const FARM={
   hat:new THREE.MeshLambertMaterial({color:0xc9a86a,fog:false}),
   tool:new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false})
 };
-function spawnFarmer(ang,rad,pose){
+/* 自治任务点：菜畦地块 / 果林 / 柴堆 / 屋门歇息 */
+function farmerTasks(){
+  const tasks=[];
+  for(const p of Eco.plots)tasks.push({kind:'weed',ang:p.ang,rad:p.rad,plot:p});
+  for(let i=0;i<3;i++)tasks.push({kind:'prune',ang:1.57+(i-1)*0.21,rad:14.7});
+  tasks.push({kind:'chop',ang:3.66,rad:14.6});
+  tasks.push({kind:'rest',ang:3.66,rad:13.6});
+  return tasks;
+}
+/* 季节任务偏好：春播、夏锄、秋收、冬樵 */
+const TASK_PREF={
+  weed:[0.40,0.85,0.40,0.20],
+  prune:[0.30,0.30,0.55,0.50],
+  chop:[0.20,0.20,0.40,0.90],
+  rest:[0.30,0.30,0.30,0.30]
+};
+function scoreTask(tk,farmer,season){
+  let s=TASK_PREF[tk.kind][season-1]||0.3;
+  const dx=Math.cos(tk.ang)*tk.rad-farmer.position.x;
+  const dz=Math.sin(tk.ang)*tk.rad-farmer.position.z;
+  s-=Math.hypot(dx,dz)*0.045;
+  if(tk.plot&&tk.plot.fert<0.35)s+=0.25;
+  return s;
+}
+function makeFarmer(ang,rad){
   const h=new THREE.Group();
   const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.11,0.30,4,8),FARM.cloth);
   body.position.y=0.42;
@@ -1883,32 +1907,64 @@ function spawnFarmer(ang,rad,pose){
   head.position.y=0.78;
   const hat=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.10,10),FARM.hat);
   hat.position.y=0.88;
-  h.add(body,head,hat);
   const hoe=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.70,5),FARM.tool);
   hoe.position.set(0.16,0.45,0);hoe.rotation.z=0.35;
-  h.add(hoe);
-  if(pose===1){body.rotation.x=0.5;head.position.set(0.06,0.70,0);hat.position.set(0.06,0.80,0);}
-  h.scale.setScalar(1.15);
+  h.add(body,head,hat,hoe);
+  h.scale.setScalar(1.32);
   h.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
-  h.lookAt(0,0.02,0);
-  h.userData={kind:'farmer',ang,rad,seed:Math.random()*TAU,pose};
+  h.userData={state:'idle',task:null,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,body,head,hoe};
   bgGroup.add(h);bgFarmers.push(h);
+  return h;
 }
-spawnFarmer(3.35,12.2,0);
-spawnFarmer(5.05,12.6,1);
-spawnFarmer(2.61,14.2,1);
-spawnFarmer(1.57,15.0,0);
-function bgFarmersUpdate(t){
+/* 六名农人分落各耕作区段：菜畦三垄 / 果林 / 宅院 / 水塘边 */
+[
+  {ang:2.61,rad:13.4},{ang:2.61,rad:14.6},{ang:2.61,rad:15.4},
+  {ang:1.57,rad:14.7},{ang:3.66,rad:13.6},{ang:4.71,rad:14.0}
+].forEach(s=>makeFarmer(s.ang,s.rad));
+/* 劳作轻量回写：除草/灌溉回升地块肥力（L3 反馈到生态层） */
+function workBackwrite(task){
+  if(task.plot&&task.kind==='weed')task.plot.fert=Math.min(1,task.plot.fert+0.04);
+}
+function farmersUpdate(t,dt,season){
   for(const f of bgFarmers){
     const u=f.userData;
-    const sway=Math.sin(t*1.6+u.seed)*0.05;
-    /* 轻量往返：在田垄附近沿角向小范围走动，面朝行进方向 */
-    const a=u.ang+Math.sin(t*0.25+u.seed)*0.18;
-    const r=u.rad+Math.cos(t*0.20+u.seed)*0.25;
-    f.position.x=Math.cos(a)*r;f.position.z=Math.sin(a)*r;
-    f.rotation.y=-a;
-    f.rotation.x=sway;
-    if(u.pose===1)f.position.y=0.02+Math.max(0,Math.sin(t*1.6+u.seed))*0.03;
+    if(u.state==='idle'){
+      let best=null,bs=-1e9;
+      for(const tk of farmerTasks()){const sc=scoreTask(tk,f,season);if(sc>bs){bs=sc;best=tk;}}
+      u.task=best;u.state='move';
+    }
+    if(u.state==='move'){
+      const tk=u.task;
+      const tx=Math.cos(tk.ang)*tk.rad,tz=Math.sin(tk.ang)*tk.rad;
+      const dx=tx-f.position.x,dz=tz-f.position.z,d=Math.hypot(dx,dz)||1e-3;
+      if(d<0.25){u.state='work';u.workT=0;u.workAcc=0;}
+      else{
+        const sp=1.5*dt;
+        f.position.x+=dx/d*sp;f.position.z+=dz/d*sp;
+        f.rotation.y=-tk.ang;
+        f.rotation.x=Math.sin(t*8+u.seed)*0.05;
+        u.body.rotation.x=0;u.head.position.set(0,0.78,0);
+      }
+    }else if(u.state==='work'){
+      u.workT+=dt;u.workAcc+=dt;
+      const swing=Math.sin(u.workT*6)*0.14;
+      u.body.rotation.x=0.5+swing;
+      u.head.position.set(0.06,0.70,0);
+      u.hoe.rotation.z=0.35+Math.sin(u.workT*6)*0.25;
+      if(u.workAcc>2.0){u.workAcc=0;workBackwrite(u.task);}
+      if(u.workT>4.0){u.state='rest';u.restT=0;}
+    }else if(u.state==='rest'){
+      u.restT+=dt;
+      u.body.rotation.x=0;u.head.position.set(0,0.78,0);u.hoe.rotation.z=0.35;
+      if(u.restT>3.0)u.state='idle';
+    }
+    /* 群体避让：简单半径分离，不叠人 */
+    for(const o of bgFarmers){
+      if(o===f)continue;
+      const ox=o.position.x-f.position.x,oz=o.position.z-f.position.z;
+      const od=Math.hypot(ox,oz);
+      if(od<0.5&&od>1e-3){f.position.x-=ox/od*0.02;f.position.z-=oz/od*0.02;}
+    }
   }
 }
 function bgAnimalsUpdate(t,dt,w){
@@ -4939,7 +4995,7 @@ function animate(){
     bgAnimalsUpdate(simTime,sdt,w);
     bgDucksUpdate(simTime);
     smokeUpdate(simTime);
-    bgFarmersUpdate(simTime);
+    farmersUpdate(simTime,sdt,curSeasonIdx);
     const springW=w[0]+w[1];
     const beamEnv=springW*0.9+w[2]*1.0+w[3]*0.45+w[4]*0.30;
     for(const bm of beamMats){bm.uniforms.uTime.value=simTime;bm.uniforms.uOpacity.value=0.30*beamEnv;}
@@ -5199,9 +5255,9 @@ function animate(){
   }
 
   /* 运镜：缓慢环绕 + 用户限位偏移 */
-  const az=1.05+simTime*0.018+userAz;
+  let az=1.05+simTime*0.018+userAz;
   const aspect=innerWidth/innerHeight;
-  const el=Math.min(1.15,Math.max(0.22,0.47+(aspect<1?0.22:0)+userEl+Math.sin(simTime*0.11)*0.03));
+  let el=Math.min(1.15,Math.max(0.22,0.47+(aspect<1?0.22:0)+userEl+Math.sin(simTime*0.11)*0.03));
   /* 竖屏时按较窄的一轴自动退远，保证整盘（含两只猫）完整入镜 */
   const fitD=aspect<1.25?Math.min(58,(DISC_R*1.12)/(Math.tan(camera.fov*Math.PI/360)*Math.min(aspect,1))):0;
   /* 开场推镜：从远处缓推到正常机位 */
