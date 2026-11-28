@@ -1302,10 +1302,15 @@ function buildCastle(){
   /* 一层飞檐（出挑双坡） */
   const e1a=_lmBox(0.95,0.09,1.70,LM.eaves,-0.36,1.52,0,g);e1a.rotation.z=0.34;
   const e1b=_lmBox(0.95,0.09,1.70,LM.eaves,0.36,1.52,0,g);e1b.rotation.z=-0.34;
+  _lmBox(0.10,0.10,1.70,LM.roof,0,1.58,0,g);   /* 一层屋脊压顶条 */
   /* 二层挑楼 */
   _lmBox(1.20,0.95,1.00,LM.woodDark,0,1.95,0,g);
   const e2a=_lmBox(0.78,0.09,1.45,LM.eaves,-0.30,2.50,0,g);e2a.rotation.z=0.34;
   const e2b=_lmBox(0.78,0.09,1.45,LM.eaves,0.30,2.50,0,g);e2b.rotation.z=-0.34;
+  _lmBox(0.10,0.10,1.45,LM.roof,0,2.56,0,g);   /* 二层屋脊压顶条 */
+  /* 烟囱：石砌方筒穿出一层檐，顶留烟口 */
+  _lmCyl(0.11,0.13,0.62,6,LM.stoneDark,0.35,1.86,-0.35,g);
+  _lmBox(0.22,0.09,0.22,LM.stoneDark,0.35,2.19,-0.35,g);
   /* 三层小阁 + 攒尖主顶 */
   _lmBox(0.90,0.75,0.80,LM.wood,0,2.85,0,g);
   _lmCone(0.72,0.72,4,LM.roof,0,3.56,0,g);
@@ -1313,10 +1318,12 @@ function buildCastle(){
   _lmBox(1.15,1.30,1.05,LM.wood,-1.60,1.00,0,g);
   const cl1=_lmBox(0.70,0.09,1.30,LM.roof,-1.78,1.72,0,g);cl1.rotation.z=0.40;
   const cl2=_lmBox(0.70,0.09,1.30,LM.roof,-1.42,1.72,0,g);cl2.rotation.z=-0.40;
+  _lmBox(0.09,0.09,1.30,LM.eaves,-1.60,1.78,0,g); /* 左配屋脊 */
   /* 右配楼 + 双坡顶 */
   _lmBox(1.15,1.10,1.00,LM.wood,1.60,0.90,0,g);
   const cr1=_lmBox(0.70,0.09,1.25,LM.roof,1.42,1.52,0,g);cr1.rotation.z=0.40;
   const cr2=_lmBox(0.70,0.09,1.25,LM.roof,1.78,1.52,0,g);cr2.rotation.z=-0.40;
+  _lmBox(0.09,0.09,1.25,LM.eaves,1.60,1.58,0,g);  /* 右配屋脊 */
   /* 连廊：主配楼间窄墙 */
   _lmBox(0.70,1.00,0.50,LM.stoneDark,-0.90,0.80,0,g);
   _lmBox(0.70,0.90,0.50,LM.stoneDark,0.90,0.75,0,g);
@@ -1348,6 +1355,10 @@ function buildBambooHouse(){
   const ba=Math.atan2(0.6,0.75);
   const h1=_lmBox(0.8,0.10,1.45,LM.roof,-0.38,1.55,0,g);h1.rotation.z=ba;
   const h2=_lmBox(0.8,0.10,1.45,LM.roof,0.38,1.55,0,g);h2.rotation.z=-ba;
+  _lmBox(0.09,0.09,1.45,LM.eaves,0,1.61,0,g);   /* 屋脊压顶条 */
+  /* 烟囱：旧木屋后侧石筒 */
+  _lmCyl(0.10,0.12,0.55,6,LM.stoneDark,-0.45,1.55,-0.30,g);
+  _lmBox(0.20,0.08,0.20,LM.stoneDark,-0.45,1.85,-0.30,g);
   /* 门 + 小窗 */
   _lmBox(0.42,0.78,0.08,LM.arch,0,0.39,0.66,g);
   _lmBox(0.3,0.3,0.06,LM.arch,-0.5,0.8,0.65,g);
@@ -1388,6 +1399,7 @@ function buildStiltHouse(){
   const roofA=Math.atan2(0.42,0.62);
   const r1=_lmBox(0.66,0.09,1.18,LM.roof,-0.33,3.30,0.10,g);r1.rotation.z=roofA;
   const r2=_lmBox(0.66,0.09,1.18,LM.roof,0.33,3.30,0.10,g);r2.rotation.z=-roofA;
+  _lmBox(0.09,0.09,1.18,LM.eaves,0,3.36,0.10,g); /* 主楼屋脊 */
   /* 一层外廊栏杆：正面两根立柱 + 一道横栏 */
   for(const px of [-0.72,0.72])_lmBox(0.07,0.55,0.07,LM.wood,px,1.62,0.78,g);
   _lmBox(1.5,0.07,0.07,LM.wood,0,1.86,0.78,g);
@@ -1413,6 +1425,7 @@ function buildStiltHouse(){
   _lmBox(0.70,0.60,0.65,LM.plaster,-1.15,1.22,0.35,g);
   const ph1=_lmBox(0.50,0.08,0.85,LM.roof,-1.30,1.60,0.35,g);ph1.rotation.z=0.36;
   const ph2=_lmBox(0.50,0.08,0.85,LM.roof,-1.00,1.60,0.35,g);ph2.rotation.z=-0.36;
+  _lmBox(0.08,0.08,0.85,LM.eaves,-1.15,1.66,0.35,g); /* 配亭屋脊 */
   /* 岸边礁石与低矮绿植团 */
   _lmSph(0.26,LM.rock,-0.70,0.13,0.85,g);
   _lmSph(0.20,LM.rock,0.80,0.10,0.90,g);
@@ -1453,6 +1466,7 @@ function buildTemple(){
   const ea=Math.atan2(0.3,0.5);
   const e1=_lmBox(0.62,0.08,1.15,LM.eaves,tx-0.26,2.36,0.05,g);e1.rotation.z=ea;
   const e2=_lmBox(0.62,0.08,1.15,LM.eaves,tx+0.26,2.36,0.05,g);e2.rotation.z=-ea;
+  _lmBox(0.09,0.09,1.15,LM.roof,tx,2.42,0.05,g); /* 木楼屋脊 */
   /* 外廊栏杆：立柱 + 横栏 */
   for(const px of [-0.62,0.62])_lmBox(0.06,0.45,0.06,LM.woodDark,tx+px,0.85,0.62,g);
   _lmBox(1.3,0.06,0.06,LM.woodDark,tx,1.06,0.62,g);
@@ -1900,6 +1914,7 @@ const FARM_OUTFITS=[
 const FARM_SKIN=new THREE.MeshLambertMaterial({color:0xdfb58e,fog:false});
 const FARM_TOOL=new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false});
 const FARM_EYE=new THREE.MeshLambertMaterial({color:0x2a2118,fog:false});
+const FARM_IRON=new THREE.MeshLambertMaterial({color:0x4a463f,fog:false});
 const farmArmGeo=new THREE.CylinderGeometry(0.028,0.026,0.24,5);
 const farmLegGeo=new THREE.CylinderGeometry(0.032,0.036,0.22,5);
 const farmShoeGeo=new THREE.BoxGeometry(0.07,0.05,0.11);
@@ -1960,14 +1975,26 @@ function makeFarmer(ang,rad,idx){
   const hat=new THREE.Mesh(new THREE.ConeGeometry(0.11,0.10,12),hatMat);
   hat.position.y=0.15;
   head.add(eyeL,eyeR,brim,hat);
-  /* 农具 */
-  const hoe=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.70,5),FARM_TOOL);
-  hoe.position.set(0.16,0.45,0);hoe.rotation.z=0.35;
-  h.add(legL,legR,shoeL,shoeR,body,belt,armL,armR,head,hoe);
+  /* 农具：锄（除草）/ 斧（砍柴）/ 篮（修剪采摘），按工种切换显隐 */
+  const hoe=new THREE.Group();
+  const hoeHandle=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.72,5),FARM_TOOL);
+  const hoeBlade=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.11,0.03),FARM_IRON);
+  hoeBlade.position.y=-0.34;
+  hoe.add(hoeHandle,hoeBlade);
+  hoe.position.set(0.17,0.45,0);hoe.rotation.z=0.35;
+  const axe=new THREE.Group();
+  const axeHandle=new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,0.56,5),FARM_TOOL);
+  const axeBlade=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.07,0.03),FARM_IRON);
+  axeBlade.position.set(0.05,0.20,0);
+  axe.add(axeHandle,axeBlade);
+  axe.position.set(0.17,0.48,0);axe.rotation.z=0.50;axe.visible=false;
+  const basket=new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.05,0.10,8),FARM_TOOL);
+  basket.position.set(-0.17,0.30,0);basket.visible=false;
+  h.add(legL,legR,shoeL,shoeR,body,belt,armL,armR,head,hoe,axe,basket);
   h.scale.setScalar(1.32*(0.96+(idx%3)*0.03));
   h.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
   const saved=Eco.villagers.find(v=>v.idx===idx)||{};
-  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,armL,armR};
+  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,axe,basket,armL,armR};
   bgGroup.add(h);bgFarmers.push(h);
   return h;
 }
@@ -1997,6 +2024,11 @@ function workBackwrite(task,farmer){
 function farmersUpdate(t,dt,season){
   for(const f of bgFarmers){
     const u=f.userData;
+    /* 农具按工种显隐：锄—除草，斧—砍柴，篮—修剪采摘；歇息/空闲收起 */
+    const kind=(u.task&&(u.state==='work'||u.state==='move'))?u.task.kind:null;
+    u.hoe.visible=kind==='weed';
+    u.axe.visible=kind==='chop';
+    u.basket.visible=kind==='prune';
     if(u.state==='idle'){
       let best=null,bs=-1e9;
       for(const tk of farmerTasks()){const sc=scoreTask(tk,f,season);if(sc>bs){bs=sc;best=tk;}}
@@ -2029,10 +2061,10 @@ function farmersUpdate(t,dt,season){
         u.armL.rotation.x=-2.1+Math.sin(u.workT*4)*0.25;
         u.armR.rotation.x=-2.1-Math.sin(u.workT*4)*0.25;
       }else if(kind==='chop'){
-        /* 砍柴：高举锄头劈下，幅度更大 */
+        /* 砍柴：高举斧劈下，幅度更大 */
         u.body.rotation.x=0.35+swing*0.10;
         u.head.position.set(0.06,0.72,0);u.head.rotation.y=0;
-        u.hoe.rotation.z=0.35+Math.sin(u.workT*4)*0.50;
+        u.axe.rotation.z=0.35+Math.sin(u.workT*4)*0.50;
         u.armL.rotation.x=0.7;u.armR.rotation.x=0.7;
       }else{
         /* 除草：弯腰挥锄 */
@@ -2049,7 +2081,6 @@ function farmersUpdate(t,dt,season){
       u.head.position.set(0,0.78,0);
       u.head.rotation.y=Math.sin(t*0.8+u.seed)*0.4;   /* 歇息时左右张望 */
       u.armL.rotation.x=0.6;u.armR.rotation.x=0.6;    /* 抱臂 */
-      u.hoe.rotation.z=0.35;
       if(u.restT>3.0)u.state='idle';
     }
     /* 群体避让：简单半径分离，不叠人 */
