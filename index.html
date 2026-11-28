@@ -1229,6 +1229,7 @@ function buildHouse(white){
   /* 烟囱 */
   const chim=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.55,0.24),houseChimMat);
   chim.position.set(w*0.22,wallTop+rh*0.7,0.2);g.add(chim);
+  g.userData.chim=chim;
   /* 门（正面 +z） */
   const door=new THREE.Mesh(new THREE.BoxGeometry(0.38,0.72,0.08),houseDoorMat);
   door.position.set(0,stilt+0.36,d/2+0.03);g.add(door);
@@ -1804,6 +1805,68 @@ for(let k=0;k<3;k++)spawnFly(1,Math.random()*TAU,rndRange(16.5,18.5),rndRange(2.
 for(let k=0;k<3;k++)spawnFly(2,Math.random()*TAU,rndRange(18.5,19.8),rndRange(2.8,3.6),rndRange(0.8,1.0),'dragon',0x4a6b5a,0xcfe8e0);
 for(let k=0;k<2;k++)spawnFox(3,Math.random()*TAU,rndRange(16.5,18.5),rndRange(0.75,0.95));
 for(let k=0;k<3;k++)spawnFly(4,Math.random()*TAU,rndRange(16.5,19.0),rndRange(1.6,2.6),rndRange(0.7,0.9),'bird',0x6b5648,0x7a6653);
+/* 水塘鸭群：实体小鸭沿溪塘弧线缓游，摆头轻晃 */
+const bgDucks=[];
+const DUCK={
+  body:new THREE.MeshLambertMaterial({color:0xe8e2d2,fog:false}),
+  head:new THREE.MeshLambertMaterial({color:0xd9d2c0,fog:false}),
+  bill:new THREE.MeshLambertMaterial({color:0xe08a3a,fog:false}),
+  wing:new THREE.MeshLambertMaterial({color:0xcfc8b4,fog:false})
+};
+function spawnDuck(ang,rad,seed,scale){
+  const d=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.SphereGeometry(0.16*scale,10,8),DUCK.body);
+  body.scale.set(1.35,0.85,0.95);body.position.y=0.13*scale;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.085*scale,8,7),DUCK.head);
+  head.position.set(0.20*scale,0.26*scale,0);
+  const bill=new THREE.Mesh(new THREE.ConeGeometry(0.035*scale,0.09*scale,6),DUCK.bill);
+  bill.rotation.z=-Math.PI/2;bill.position.set(0.28*scale,0.25*scale,0);
+  const tail=new THREE.Mesh(new THREE.ConeGeometry(0.06*scale,0.14*scale,6),DUCK.wing);
+  tail.rotation.z=Math.PI/2;tail.position.set(-0.20*scale,0.16*scale,0);
+  const wing=new THREE.Mesh(new THREE.SphereGeometry(0.09*scale,8,6),DUCK.wing);
+  wing.scale.set(1.2,0.5,0.9);wing.position.set(0,0.16*scale,0.05*scale);
+  d.add(body,head,bill,tail,wing);
+  d.position.set(Math.cos(ang)*rad,0.06,Math.sin(ang)*rad);
+  d.userData={kind:'duck',ang,rad,seed,scale,head};
+  bgGroup.add(d);bgDucks.push(d);
+}
+for(let k=0;k<3;k++)spawnDuck(4.71+(k-1)*0.16,18.4+k*0.35,k*2.1,rndRange(0.85,1.05));
+function bgDucksUpdate(t){
+  for(const d of bgDucks){
+    const u=d.userData;
+    const a=u.ang+Math.sin(t*0.10+u.seed)*0.22;
+    const r=u.rad+Math.sin(t*0.23+u.seed)*0.25;
+    d.position.x=Math.cos(a)*r;d.position.z=Math.sin(a)*r;
+    d.position.y=0.06+Math.sin(t*1.8+u.seed)*0.02;
+    d.rotation.y=-a;
+    u.head.position.y=0.26*u.scale+Math.sin(t*1.3+u.seed)*0.02;
+  }
+}
+/* 宅院炊烟：半透明烟团自烟囱上浮散开，循环 */
+const bgSmoke=[];const smokeAnchor=new THREE.Group();
+(function initSmoke(){
+  for(let k=0;k<5;k++){
+    const mat=new THREE.MeshLambertMaterial({color:0xd8d6cf,transparent:true,opacity:0.16,depthWrite:false,fog:false});
+    const s=new THREE.Mesh(new THREE.SphereGeometry(0.20,8,6),mat);
+    s.userData.ph=k/5;smokeAnchor.add(s);bgSmoke.push(s);
+  }
+  bgGroup.add(smokeAnchor);
+})();
+function smokeUpdate(t){
+  if(!bgHouses.length){smokeAnchor.visible=false;return;}
+  smokeAnchor.visible=true;
+  const h=bgHouses[0];
+  if(h.userData.chim)h.userData.chim.getWorldPosition(_nv);else _nv.set(h.position.x,2.2,h.position.z);
+  smokeAnchor.position.copy(_nv);
+  for(const s of bgSmoke){
+    const ph=(t*0.12+s.userData.ph)%1;
+    s.position.y=ph*1.9;
+    s.position.x=ph*0.35+Math.sin(t*0.5+s.userData.ph*9)*0.08;
+    s.position.z=Math.cos(t*0.4+s.userData.ph*7)*0.08;
+    s.scale.setScalar(0.7+ph*1.7);
+    s.material.opacity=0.30*(1-ph);
+  }
+}
 /* 田间农人：简笔几何小人，常驻四季，持锄站立 / 弯腰劳作，带轻微起伏 */
 const bgFarmers=[];
 const FARM={
@@ -1833,10 +1896,17 @@ function spawnFarmer(ang,rad,pose){
 }
 spawnFarmer(3.35,12.2,0);
 spawnFarmer(5.05,12.6,1);
+spawnFarmer(2.61,14.2,1);
+spawnFarmer(1.57,15.0,0);
 function bgFarmersUpdate(t){
   for(const f of bgFarmers){
     const u=f.userData;
     const sway=Math.sin(t*1.6+u.seed)*0.05;
+    /* 轻量往返：在田垄附近沿角向小范围走动，面朝行进方向 */
+    const a=u.ang+Math.sin(t*0.25+u.seed)*0.18;
+    const r=u.rad+Math.cos(t*0.20+u.seed)*0.25;
+    f.position.x=Math.cos(a)*r;f.position.z=Math.sin(a)*r;
+    f.rotation.y=-a;
     f.rotation.x=sway;
     if(u.pose===1)f.position.y=0.02+Math.max(0,Math.sin(t*1.6+u.seed))*0.03;
   }
@@ -4867,6 +4937,8 @@ function animate(){
     skyMat.uniforms.uW.value.set(w[1]+w[0],w[2],w[3],w[4]);
     updateFoliageTint(A,B,pAngle,winterW);
     bgAnimalsUpdate(simTime,sdt,w);
+    bgDucksUpdate(simTime);
+    smokeUpdate(simTime);
     bgFarmersUpdate(simTime);
     const springW=w[0]+w[1];
     const beamEnv=springW*0.9+w[2]*1.0+w[3]*0.45+w[4]*0.30;
