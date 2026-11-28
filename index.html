@@ -371,16 +371,16 @@ const TIER=window.__tier;
 let _sq='auto';try{_sq=localStorage.getItem('sq_quality')||'auto';}catch(e){}
 const QLEVEL=_sq==='auto'?TIER:(_sq==='low'?'low':_sq==='mid'?'mid':'high');
 const pc=(desk,mob)=>!IS_MOBILE?desk:QLEVEL==='high'?desk:QLEVEL==='low'?Math.round(mob*0.7):mob;
-const BLADE_COUNT=pc(190000,50000);
+const BLADE_COUNT=pc(120000,36000);
 const FLOWER_COUNT=pc(2000,1000);
 
 /* 季节调色板：0 裸盘 1 春 2 夏 3 秋 4 冬 */
 const SEASONS=[
   {base:[0.02,0.03,0.02],tip:[0.03,0.04,0.03],h:0.0, droop:0.0, flower:0},
-  {base:[0.06,0.20,0.07],tip:[0.22,0.55,0.18],h:1.15,droop:0.10,flower:1},
-  {base:[0.05,0.18,0.06],tip:[0.20,0.50,0.15],h:1.45,droop:0.05,flower:0.02},
-  {base:[0.30,0.16,0.05],tip:[0.90,0.48,0.16],h:1.12,droop:0.50,flower:0},
-  {base:[0.32,0.36,0.42],tip:[0.80,0.85,0.93],h:0.62,droop:0.20,flower:0}
+  {base:[0.06,0.20,0.07],tip:[0.22,0.55,0.18],h:0.82,droop:0.10,flower:1},
+  {base:[0.05,0.18,0.06],tip:[0.20,0.50,0.15],h:1.00,droop:0.05,flower:0.02},
+  {base:[0.30,0.16,0.05],tip:[0.90,0.48,0.16],h:0.78,droop:0.50,flower:0},
+  {base:[0.32,0.36,0.42],tip:[0.80,0.85,0.93],h:0.50,droop:0.20,flower:0}
 ];
 const SEASON_META=[
   {ch:'春',en:'SPRING',poem:'草木萌发 · 星野初醒'},
@@ -3276,7 +3276,7 @@ const grassGeo=bladeGeometry();
     }
     off[i*2]=x;off[i*2+1]=z;
     ang[i]=Math.atan2(z,x);
-    dat[i*4]=rndRange(0.74,1.60);     // 高度差异（长短草混生）
+    dat[i*4]=rndRange(0.60,1.12);     // 高度差异（长短草混生）
     dat[i*4+1]=Math.random()*TAU;     // 风相位
     dat[i*4+2]=Math.random();         // 色彩抖动
     dat[i*4+3]=Math.random()*TAU;     // 朝向
@@ -3305,7 +3305,11 @@ const grassMat=new THREE.ShaderMaterial({
       vWinter=locWinter;
       tip=mix(tip,vec3(0.62,0.58,0.26),step(0.82,aData.z)*0.5*uDry);
       float rim=smoothstep(8.95,9.55,length(aOffset));
-      float h=0.70*aData.x*hScale*(1.0+0.18*rim);
+      float rrRad=length(aOffset);
+      /* 外环耕作区（菜畦/果林/宅院/农人所在）草高再压低，不遮人不遮地块；
+         林带、后山向外渐回正常高度。 */
+      float zoneCut=rrRad>10.8?mix(0.5,1.0,smoothstep(16.5,19.5,rrRad)):1.0;
+      float h=0.52*aData.x*hScale*(1.0+0.08*rim)*zoneCut;
       /* 冬：绝大多数草叶被雪完全埋住，只留极少数极矮的草尖探出雪面，
          高度压低、数量减少，避免雪面上透出一根根枯草细线。 */
       float poke=step(0.97,h21(aOffset*1.31+7.7));
@@ -3391,7 +3395,7 @@ const grass=new THREE.Mesh(grassGeo,grassMat);
 grass.frustumCulled=false;discGroup.add(grass);
 
 /* 盘外背景草：盘缘铺到远山，复用盘内同一套风动与季节着色 */
-const BG_BLADE=pc(92000,28000);
+const BG_BLADE=pc(55000,18000);
 const bgGrassGeo=bladeGeometry();
 {
   const off=new Float32Array(BG_BLADE*2),dat=new Float32Array(BG_BLADE*4),ang=new Float32Array(BG_BLADE);
@@ -3400,7 +3404,7 @@ const bgGrassGeo=bladeGeometry();
     const a=Math.random()*TAU;
     off[i*2]=Math.cos(a)*r;off[i*2+1]=Math.sin(a)*r;
     ang[i]=a;
-    dat[i*4]=rndRange(0.74,1.18);dat[i*4+1]=Math.random()*TAU;dat[i*4+2]=Math.random();dat[i*4+3]=Math.random()*TAU;
+    dat[i*4]=rndRange(0.55,0.95);dat[i*4+1]=Math.random()*TAU;dat[i*4+2]=Math.random();dat[i*4+3]=Math.random()*TAU;
   }
   bgGrassGeo.setAttribute('aOffset',new THREE.InstancedBufferAttribute(off,2));
   bgGrassGeo.setAttribute('aData',new THREE.InstancedBufferAttribute(dat,4));
