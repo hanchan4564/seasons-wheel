@@ -1748,9 +1748,9 @@ let firewoodPile=null;
 const fruitMeshes=[];
 const fruitMat=new THREE.MeshLambertMaterial({color:0xd9603a,fog:false});
 const fruitGeo=new THREE.SphereGeometry(0.07,6,5);
-/* 作物苗几何：单位高茎 + 冠球，株高由地块阶段拉伸 */
+/* 作物苗几何：单位高茎；冠部为散开小叶片簇，不用圆球（去棒棒糖造型） */
 const spStemGeo=new THREE.CylinderGeometry(0.018,0.024,1,5);
-const spHeadGeo=new THREE.SphereGeometry(1,6,5);
+const spLeafGeo=new THREE.ConeGeometry(0.05,0.16,4);
 const spHeadMat=new THREE.MeshLambertMaterial({color:0x2c521e,fog:false});
 function makeSprout(seed){
   const g=new THREE.Group();
@@ -1760,9 +1760,16 @@ function makeSprout(seed){
     const stem=new THREE.Mesh(spStemGeo,zoneReedMat);
     const x=(k-1)*0.12,z=(r()-0.5)*0.12;
     stem.scale.y=h;stem.position.set(x,h/2,z);
-    const head=new THREE.Mesh(spHeadGeo,spHeadMat);
-    head.position.set(x,h+0.05,z);head.scale.setScalar(0.09+r()*0.05);
-    g.add(stem,head);
+    g.add(stem);
+    for(let l=0;l<4;l++){
+      const leaf=new THREE.Mesh(spLeafGeo,spHeadMat);
+      const la=l*(TAU/4)+r()*0.5;
+      const tilt=0.6+r()*0.25;
+      leaf.position.set(x+Math.cos(la)*0.035,h+0.06,z+Math.sin(la)*0.035);
+      leaf.rotation.set(Math.cos(la)*tilt,la,Math.sin(la)*tilt);
+      leaf.scale.set(1,1,0.55);
+      g.add(leaf);
+    }
   }
   return g;
 }
@@ -3305,7 +3312,6 @@ function meteorUpdate(sdt){
 }
 
 /* ===== 轮盘盘体 ===== */
-const landDecor=[];
 const discGroup=new THREE.Group();scene.add(discGroup);
 /* 盘侧壁：拉丝青铜带（竖向沟槽 + 金属反光），不再是死黑塑料 */
 function makeSideTexture(){
@@ -3938,7 +3944,7 @@ grass.frustumCulled=false;discGroup.add(grass);
 
 /* ===== 盘面近景菜畦：让耕作景象落在转盘可见区内（随盘旋转） ===== */
 (function innerField(){
-  const g=new THREE.Group();discGroup.add(g);landDecor.push(g);
+  const g=new THREE.Group();discGroup.add(g);
   const c0=0.55;                                  /* 种植带中心角 */
   const rows=[5.35,6.45,7.55];                   /* 三条垄半径 */
   for(let ri=0;ri<rows.length;ri++){
@@ -4938,7 +4944,6 @@ const pm=(arr,c,o={})=>{const m=new THREE.MeshBasicMaterial(Object.assign({color
   winterProp.position.set(-2.7,0.16,1.8);
 }
 scene.add(springProp,summerProp,autumnProp,winterProp);
-landDecor.push(pebbles,plants,springProp,summerProp,autumnProp,winterProp);
 
 /* 盘内 3D 动物：秋狐 / 冬雀 / 夏蜓，实体形体带动作，不再用贴图精灵 */
 function makeShadow(){
@@ -5346,16 +5351,6 @@ function applyTheme(t){
   for(const m of auroraMeshes)m.visible=night;
   underGlow.visible=night;
   bgGroup.visible=!night;
-  /* 主题隔离：星夜隐藏山河专属盘面装饰与季节角色，切换瞬间兜底，避免残留 */
-  if(night){
-    for(const o of landDecor)o.visible=false;
-    grass.visible=false;flowers.visible=false;snow.visible=false;
-    leaves.visible=false;leafFalls.visible=false;frosts.visible=false;
-    sakuras.visible=false;sparkSnow.visible=false;drift.visible=false;
-    snowman.visible=false;xmasTree.visible=false;scarecrow.visible=false;
-    springTree.visible=false;summerLotus.visible=false;rain.visible=false;
-    squirrel.visible=false;sparrow.visible=false;dragonfly.visible=false;
-  }
 }
 const clock=new THREE.Clock();
 let frameAcc=0,frameN=0,degraded=false;
@@ -5626,25 +5621,18 @@ function animate(){
   const w=[0,0,0,0,0];
   w[A]+=1-f;w[B]+=f;
   const winterW=w[4],autumnW=w[3],greenW=w[1]+w[2];
-  const land=theme===1;
-  if(land){
   _tint.setRGB(
     lightTint[0].r*w[1]+lightTint[1].r*w[2]+lightTint[2].r*w[3]+lightTint[3].r*w[4],
     lightTint[0].g*w[1]+lightTint[1].g*w[2]+lightTint[2].g*w[3]+lightTint[3].g*w[4],
     lightTint[0].b*w[1]+lightTint[1].b*w[2]+lightTint[2].b*w[3]+lightTint[3].b*w[4]);
   key.color.copy(_tint);
   hemi.color.copy(_tint).lerp(new THREE.Color(0x39496b),0.55);
-  }else{
-  key.color.setRGB(0.30,0.36,0.52);
-  hemi.color.setRGB(0.20,0.26,0.42);
-  }
   seasonUniforms.uWind.value=0.90+greenW*0.55+autumnW*0.45+winterW*0.35;
   _under.setRGB(
     _uc[0].r*w[1]+_uc[1].r*w[2]+_uc[2].r*w[3]+_uc[3].r*w[4],
     _uc[0].g*w[1]+_uc[1].g*w[2]+_uc[2].g*w[3]+_uc[3].g*w[4],
     _uc[0].b*w[1]+_uc[1].b*w[2]+_uc[2].b*w[3]+_uc[3].b*w[4]);
   underGlow.material.color.copy(_under);
-  if(land){
   petalMat.uniforms.uOpacity.value=w[1]*0.9;
   fluffMat.uniforms.uOpacity.value=w[1]*0.55;
   pollenMat.uniforms.uOpacity.value=easeW(w[1])*0.7;
@@ -5652,10 +5640,6 @@ function animate(){
   fireflyMat.uniforms.uOpacity.value=w[2]*0.9;
   seedMat.uniforms.uOpacity.value=autumnW;
   snowfallMat.uniforms.uOpacity.value=winterW;
-  }else{
-  petalMat.uniforms.uOpacity.value=0;fluffMat.uniforms.uOpacity.value=0;pollenMat.uniforms.uOpacity.value=0;
-  petalFallMat.uniforms.uOpacity.value=0;fireflyMat.uniforms.uOpacity.value=0;seedMat.uniforms.uOpacity.value=0;snowfallMat.uniforms.uOpacity.value=0;
-  }
   starMat.uniforms.uTime.value=simTime;
   glintMat.uniforms.uTime.value=simTime;
   fallMat.uniforms.uTime.value=simTime;
@@ -5721,13 +5705,11 @@ function animate(){
     key.intensity=0.95;hemi.intensity=0.6;
   }
   /* 日内时间：在季节光照上叠加晨昏强度/暖度/雾浓，不推翻季节色板 */
-  if(land){
   const dl=dayLightCurve(dayT),warm=dayWarmth(dayT);
   key.intensity*=(0.35+0.65*dl);
   hemi.intensity*=(0.40+0.60*dl);
   if(warm>0.02)key.color.lerp(_warmCol,warm*0.35);
   scene.fog.far*=(1.15-0.30*dl);
-  }
   if(!dayLock){dayRange.value=Math.round(dayT*1000);dayLabel.textContent=dayLabelText(dayT);}
   /* 太阳 / 月亮：沿天空弧线随日内时间升降，主题0 星夜保持隐藏；方位跟随相机后景，环绕不脱画 */
   const _isNightT=dayT<0.15||dayT>0.85;
@@ -5753,7 +5735,6 @@ function animate(){
     moonGroup.lookAt(camera.position);
     moonGroup.visible=true;sunGroup.visible=false;
   }else{sunGroup.visible=false;moonGroup.visible=false;}
-  if(land){
   landmarksUpdate(w);
   seasonUniforms.uWinterA.value=A===4?1:0;
   seasonUniforms.uWinterB.value=B===4?1:0;
@@ -5812,17 +5793,6 @@ function animate(){
   gooseUpdate(sdt,w[3]);
   heartUpdate(sdt);
   breathUpdate(sdt,winterW);
-  }else{
-  /* 星夜主题：隐藏一切山河专属季节装饰、角色与粒子，避免串台 */
-  for(const o of landDecor)o.visible=false;
-  grass.visible=false;flowers.visible=false;snow.visible=false;
-  leaves.visible=false;leafFalls.visible=false;frosts.visible=false;
-  sakuras.visible=false;sparkSnow.visible=false;drift.visible=false;
-  snowman.visible=false;xmasTree.visible=false;scarecrow.visible=false;
-  springTree.visible=false;summerLotus.visible=false;rain.visible=false;
-  squirrel.visible=false;sparrow.visible=false;dragonfly.visible=false;
-  seasonUniforms.uWinterA.value=0;seasonUniforms.uWinterB.value=0;
-  }
   const imp=seasonUniforms.uImpact.value;
   if(imp.w>0){imp.z+=sdt;if(imp.z>3.2)imp.w=0;}
   let tr=0,tg=0,tb=0;
@@ -5830,11 +5800,7 @@ function animate(){
   const tint=[1+(tr-1)*0.55,1+(tg-1)*0.55,1+(tb-1)*0.55];
 
   /* 天气彩蛋推进 */
-  if(!land){
-    rainMat.uniforms.uRain.value=0;rain.visible=false;snowUniforms.uDust.value=0;
-    petalMat.uniforms.uOpacity.value=0;seedMat.uniforms.uOpacity.value=0;
-    seasonUniforms.uGust.value.w=0;
-  }else if(weather.type){
+  if(weather.type){
     weather.t+=sdt;
     const e=Math.max(0,Math.min(1,weather.t/1.2)*Math.min(1,(weather.dur-weather.t)/1.5));
     rainMat.uniforms.uRain.value=weather.type===2?e:0;
