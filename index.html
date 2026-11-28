@@ -1612,7 +1612,7 @@ placeLandmark(buildRuin(),4,LM_ANGLES[4],14.4);
 const ECO_KEY='sq_eco_v1';
 let _savedAngle=null;
 const Eco={
-  year:0,richness:0,plots:[],trees:[],firewood:1,villagers:[],props:[],_saveT:0,_lastSeason:0,
+  year:0,richness:0,plots:[],trees:[],firewood:1,villagers:[],props:[],dayT:null,_saveT:0,_lastSeason:0,
   load(){
     let raw=null;try{raw=JSON.parse(localStorage.getItem(ECO_KEY)||'null');}catch(e){}
     if(raw&&typeof raw==='object'){
@@ -1622,21 +1622,23 @@ const Eco={
       this.firewood=typeof raw.firewood==='number'?raw.firewood:1;
       this.villagers=Array.isArray(raw.villagers)?raw.villagers:[];
       this.props=Array.isArray(raw.props)?raw.props:[];
+      this.dayT=typeof raw.dayT==='number'&&raw.dayT>=0&&raw.dayT<=1?raw.dayT:null;
       if(typeof raw.totalAngle==='number')_savedAngle=raw.totalAngle;
     }
   },
   save(){
+    this.dayT=dayT;
     try{
       localStorage.setItem(ECO_KEY,JSON.stringify({
         totalAngle:totalAngle,year:this.year,richness:this.richness,firewood:this.firewood,
         villagers:this.villagers,
         plots:this.plots.map(p=>({id:p.id,ang:p.ang,rad:p.rad,fert:p.fert,crop:p.crop,stage:p.stage,rest:p.rest,seed:p.seed})),
         trees:this.trees.map(t=>({id:t.id,age:t.age,seed:t.seed})),
-        props:this.props
+        props:this.props,dayT:this.dayT
       }));
     }catch(e){}
   },
-  reset(){try{localStorage.removeItem(ECO_KEY);}catch(e){}this.plots=[];this.trees=[];this.year=0;this.richness=0;this.firewood=1;this.villagers=[];this.props=[];},
+  reset(){try{localStorage.removeItem(ECO_KEY);}catch(e){}this.plots=[];this.trees=[];this.year=0;this.richness=0;this.firewood=1;this.villagers=[];this.props=[];this.dayT=null;},
   addPlot(ang,rad,seed){
     let p=this.plots.find(x=>x.seed===seed);
     if(!p){
@@ -2115,9 +2117,12 @@ function makeFarmer(ang,rad,idx){
   basket.position.set(-0.17,0.30,0);basket.visible=false;
   h.add(legL,legR,shoeL,shoeR,body,belt,armL,armR,head,hoe,axe,basket);
   h.scale.setScalar(1.32*(0.96+(idx%3)*0.03));
-  h.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
   const saved=Eco.villagers.find(v=>v.idx===idx)||{};
-  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,axe,basket,armL,armR};
+  const sx=typeof saved.x==='number'?saved.x:Math.cos(ang)*rad;
+  const sz=typeof saved.z==='number'?saved.z:Math.sin(ang)*rad;
+  h.position.set(sx,0.02,sz);
+  const mood=0.55+((idx*37)%10)/10*0.30;   /* 性格权重（勤快/悠闲），接口预留 */
+  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,mood,energy:1,age:0,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,axe,basket,armL,armR};
   bgGroup.add(h);bgFarmers.push(h);
   return h;
 }
@@ -2216,6 +2221,9 @@ function farmersUpdate(t,dt,season){
       const od=Math.hypot(ox,oz);
       if(od<0.5&&od>1e-3){f.position.x-=ox/od*0.02;f.position.z-=oz/od*0.02;}
     }
+    /* 最后位置纳入本地存档，刷新后不挤回起点 */
+    let sv=Eco.villagers.find(x=>x.idx===u.idx);
+    if(sv){sv.x=Math.round(f.position.x*100)/100;sv.z=Math.round(f.position.z*100)/100;}
   }
 }
 function bgAnimalsUpdate(t,dt,w){
@@ -4923,8 +4931,9 @@ let introT=_skipIntro?1:0;   // 开场推镜进度 0→1
 let paused=false;
 /* 日内时间：0=凌晨 0.22=清晨 0.5=正午 0.78=黄昏 0.95=深夜；滑块拖动时锁定自动流转 */
 let dayT=0.32,dayLock=false;
+if(typeof Eco.dayT==='number')dayT=Eco.dayT;   /* 日内时间随存档延续 */
 const DAY_SECONDS=200;
-function dayLightCurve(t){const x=Math.cos((t-0.5)*TAU);return Math.max(0.12,(x+1)/2);}
+function dayLightCurve(t){const w=[0,1.0,0.82,1.0,1.22][curSeasonIdx||1];const x=Math.cos((t-0.5)*TAU*w);return Math.max(0.12,(x+1)/2);}
 function dayWarmth(t){const m=Math.min(Math.abs(t-0.22),Math.abs(t-0.78));return Math.max(0,1-m/0.18);}
 const _warmCol=new THREE.Color(0xff9a5a);
 let runPhase=0,catWinter=0;
@@ -5610,7 +5619,8 @@ function animate(){
   if(rev!==lastRev){
     lastRev=rev;
     const n=rev+1;
-    yearEl.textContent='轮转 · 第'+(n<=10?CN_NUM[n-1]:n)+'年';
+    const stage=n<=1?'初垦':n<=3?'成长':n<=5?'丰饶':'轮作';
+    yearEl.textContent='轮转 · 第'+(n<=10?CN_NUM[n-1]:n)+'年 · '+stage;
   }
 
   /* 运镜：缓慢环绕 + 用户限位偏移 */
