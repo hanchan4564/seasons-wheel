@@ -972,7 +972,7 @@ function makeRoofTex(){
   t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;return t;
 }
 const woodTex=makeWoodTex('#7a5a3a',32);
-const woodLightTex=makeWoodTex('#c9bda4',32);
+const woodLightTex=makeWoodTex('#a89777',32);
 const roofTex=makeRoofTex();
 const bgMountains=[];
 const bgFarMountains=[];
@@ -1263,6 +1263,12 @@ function buildHouse(white){
     const c=new THREE.Mesh(colGeo,housePostMat);
     c.position.set(sx*w/2,stilt+wh/2,sz*d/2);g.add(c);
   }
+  /* 侧墙竖向分格条：破掉整面大白板，与正面木构一致 */
+  const sideBarGeo=new THREE.BoxGeometry(0.06,wh,0.06);
+  for(const sx of [-1,1])for(const sz of [-0.25,0.25]){
+    const sb=new THREE.Mesh(sideBarGeo,housePostMat);
+    sb.position.set(sx*w/2,stilt+wh/2,sz*d/2);g.add(sb);
+  }
   const wallTop=stilt+wh;
   /* 山墙三角板（屋身左右两端封山） */
   const gableShape=new THREE.Shape();
@@ -1333,8 +1339,8 @@ const LM={
   roof:new THREE.MeshLambertMaterial({color:0x46382c,fog:false}),
   eaves:new THREE.MeshLambertMaterial({color:0x3a2e24,fog:false}),
   leaf:new THREE.MeshLambertMaterial({color:0x2f5a24,fog:false}),
-  plaster:new THREE.MeshLambertMaterial({color:0xc9c2b2,fog:false}),
-  ruin:new THREE.MeshLambertMaterial({color:0x5d6066,fog:false}),
+  plaster:new THREE.MeshLambertMaterial({color:0xaea184,fog:false}),
+  ruin:new THREE.MeshLambertMaterial({color:0x52545a,fog:false}),
   rock:new THREE.MeshLambertMaterial({color:0x7a7a72,fog:false}),
   ruinSnow:new THREE.MeshLambertMaterial({color:0xdfe6ea,fog:false}),
   woodDark:new THREE.MeshLambertMaterial({color:0x54391f,fog:false}),
@@ -3642,6 +3648,30 @@ const grassMat=new THREE.ShaderMaterial({
 });
 const grass=new THREE.Mesh(grassGeo,grassMat);
 grass.frustumCulled=false;discGroup.add(grass);
+
+/* ===== 盘面近景菜畦：让耕作景象落在转盘可见区内（随盘旋转） ===== */
+(function innerField(){
+  const g=new THREE.Group();discGroup.add(g);
+  const c0=0.55;                                  /* 种植带中心角 */
+  const rows=[5.35,6.45,7.55];                   /* 三条垄半径 */
+  for(let ri=0;ri<rows.length;ri++){
+    const rr=rows[ri];const off=(ri-1)*0.14;
+    for(let k=0;k<4;k++){
+      const a=c0+off+(k-1.5)*0.30;
+      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+      const ridge=new THREE.Mesh(new THREE.BoxGeometry(0.70,0.22,0.40),zoneSoilMat);
+      ridge.position.set(x,0.11,z);ridge.rotation.y=-(a+Math.PI/2);
+      ridge.receiveShadow=true;g.add(ridge);
+      const sprout=makeSprout(ri*10+k+101);
+      sprout.position.set(x,0.12,z);sprout.scale.setScalar(1.22);g.add(sprout);
+    }
+  }
+  /* 垄间一条农人小道（弧带） */
+  const path=new THREE.Mesh(new THREE.PlaneGeometry(2.7,0.5).rotateX(-Math.PI/2),zonePathMat);
+  const pa=c0+0.10,pr=6.0;
+  path.position.set(Math.cos(pa)*pr,0.018,Math.sin(pa)*pr);
+  path.rotation.y=-(pa+Math.PI/2);g.add(path);
+})();
 
 /* 盘外背景草：盘缘铺到远山，复用盘内同一套风动与季节着色 */
 const BG_BLADE=pc(55000,18000);
