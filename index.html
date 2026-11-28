@@ -1355,6 +1355,11 @@ function _lmBox(w,h,d,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.BoxGeometr
 function _lmCyl(rt,rb,h,seg,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);m.position.set(x,y,z);grp.add(m);return m;}
 function _lmCone(r,h,seg,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,seg),mat);m.position.set(x,y,z);grp.add(m);return m;}
 function _lmSph(r,mat,x,y,z,grp){const m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat);m.position.set(x,y,z);grp.add(m);return m;}
+/* 多团簇冠：杆顶周围错叠 5 团小叶球，替代单顶球的棒棒糖观感 */
+function _lmCluster(x,y,z,baseR,mat,grp){
+  const offs=[[0,0,0],[0.11,0.05,0.05],[-0.10,0.03,-0.06],[0.04,0.11,-0.04],[-0.05,0.07,0.08]];
+  for(let i=0;i<offs.length;i++){const o=offs[i];_lmSph(baseR*(i===0?1:0.72),mat,x+o[0],y+o[1],z+o[2],grp);}
+}
 /* 复用构件：深色窗板 + 十字木格栅分格 */
 function _lmWindow(x,y,z,w,h,grp){
   _lmBox(w,h,0.06,LM.arch,x,y,z,grp);
@@ -1454,7 +1459,7 @@ function buildBambooHouse(){
     const bz=-0.5+(i%2*0.35);
     const c=_lmCyl(0.05,0.06,h,5,LM.leaf,bx[i],h/2,bz,g);
     c.rotation.z=(bx[i]>0?-1:1)*0.06;
-    _lmSph(0.16,LM.leaf,bx[i],h+0.05,bz,g);
+    _lmCluster(bx[i],h+0.05,bz,0.15,LM.leaf,g);
   }
   /* 屋旁岩石 */
   _lmSph(0.30,LM.stone,-1.0,0.15,0.8,g);
@@ -1506,9 +1511,9 @@ function buildStiltHouse(){
   const sp2=_lmBox(0.07,1.06,0.07,LM.roof,1.15,1.05,-0.35,g);sp2.rotation.z=Math.PI/2;sp2.rotation.y=Math.PI/2;
   /* 棕榈两棵：斜干 + 冠团 */
   const palm=_lmCyl(0.06,0.08,1.9,5,LM.wood,-1.15,0.95,-0.45,g);palm.rotation.z=0.18;
-  _lmSph(0.22,LM.leaf,-1.30,1.92,-0.45,g);
+  _lmCluster(-1.30,1.92,-0.45,0.20,LM.leaf,g);
   const palm2=_lmCyl(0.05,0.07,1.6,5,LM.wood,1.55,0.80,-0.55,g);palm2.rotation.z=-0.15;
-  _lmSph(0.18,LM.leaf,1.68,1.62,-0.55,g);
+  _lmCluster(1.68,1.62,-0.55,0.17,LM.leaf,g);
   /* 二层挑楼回廊栏杆：正面立柱 + 横栏 */
   for(const px of [-0.42,0.42])_lmBox(0.06,0.42,0.06,LM.wood,px,3.05,0.55,g);
   _lmBox(0.95,0.06,0.06,LM.wood,0,3.24,0.55,g);
