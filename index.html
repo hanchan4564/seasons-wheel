@@ -1009,7 +1009,7 @@ function makeRoofTex(){
   t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;return t;
 }
 const woodTex=makeWoodTex('#7a5a3a',32);
-const woodLightTex=makeWoodTex('#a89777',32);
+const woodLightTex=makeWoodTex('#968463',32);
 const roofTex=makeRoofTex();
 const bgMountains=[];
 const bgFarMountains=[];
@@ -1029,12 +1029,12 @@ const leafMap=makeLeafMap();
 const shadowCv=document.createElement('canvas');shadowCv.width=128;shadowCv.height=128;
 const shadowCtx=shadowCv.getContext('2d');
 const shadowGrad=shadowCtx.createRadialGradient(64,64,4,64,64,62);
-shadowGrad.addColorStop(0,'rgba(0,0,0,0.40)');
+shadowGrad.addColorStop(0,'rgba(0,0,0,0.46)');
 shadowGrad.addColorStop(1,'rgba(0,0,0,0)');
 shadowCtx.fillStyle=shadowGrad;shadowCtx.fillRect(0,0,128,128);
 const shadowTex=new THREE.CanvasTexture(shadowCv);
 const shadowGeo=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
-const shadowMat=new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,fog:false,opacity:0.42});
+const shadowMat=new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,fog:false,opacity:0.45});
 
 
 const trunkMat=new THREE.MeshStandardMaterial({color:0x382718,roughness:0.98,metalness:0,fog:false});
@@ -1273,7 +1273,7 @@ const bgHouses=[];
 const houseWallMat =new THREE.MeshLambertMaterial({color:0xffffff,map:woodTex,fog:false});
 const houseWallMat2=new THREE.MeshLambertMaterial({color:0xffffff,map:woodLightTex,fog:false});
 const houseRoofMat =new THREE.MeshLambertMaterial({color:0xffffff,map:roofTex,fog:false});
-const houseChimMat =new THREE.MeshLambertMaterial({color:0x6b6a63,fog:false});
+const houseChimMat =new THREE.MeshLambertMaterial({color:0x5c5b54,fog:false});
 const houseDoorMat =new THREE.MeshLambertMaterial({color:0x4a3423,fog:false});
 const housePostMat=new THREE.MeshLambertMaterial({color:0x8a7358,map:woodTex,fog:false});
 const houseWinMat  =new THREE.MeshLambertMaterial({color:0xe6c878,fog:false});
@@ -1370,17 +1370,17 @@ for(let i=0;i<HOUSE_N;i++){
 /* ===== 分地区地标：把参考场景主体用基础几何程序化落到环形背景带，按季节权重显隐 ===== */
 const bgLandmarks=[];
 const LM={
-  stone:new THREE.MeshLambertMaterial({color:0x6b6a63,fog:false}),
-  stoneDark:new THREE.MeshLambertMaterial({color:0x51504a,fog:false}),
+  stone:new THREE.MeshLambertMaterial({color:0x46453f,fog:false}),
+  stoneDark:new THREE.MeshLambertMaterial({color:0x2e2d29,fog:false}),
   wood:new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false}),
   roof:new THREE.MeshLambertMaterial({color:0x46382c,fog:false}),
   eaves:new THREE.MeshLambertMaterial({color:0x3a2e24,fog:false}),
   leaf:new THREE.MeshLambertMaterial({color:0x2f5a24,fog:false}),
-  plaster:new THREE.MeshLambertMaterial({color:0xaea184,fog:false}),
-  ruin:new THREE.MeshLambertMaterial({color:0x52545a,fog:false}),
-  rock:new THREE.MeshLambertMaterial({color:0x7a7a72,fog:false}),
+  plaster:new THREE.MeshLambertMaterial({color:0x97866a,fog:false}),
+  ruin:new THREE.MeshLambertMaterial({color:0x43454a,fog:false}),
+  rock:new THREE.MeshLambertMaterial({color:0x6a6a62,fog:false}),
   ruinSnow:new THREE.MeshLambertMaterial({color:0xdfe6ea,fog:false}),
-  woodDark:new THREE.MeshLambertMaterial({color:0x54391f,fog:false}),
+  woodDark:new THREE.MeshLambertMaterial({color:0x402c17,fog:false}),
   buddha:new THREE.MeshLambertMaterial({color:0x9a7f4e,fog:false}),
   arch:new THREE.MeshLambertMaterial({color:0x2a241c,fog:false})
 };
@@ -1485,14 +1485,16 @@ function buildBambooHouse(){
   _lmWindow(-0.5,0.8,0.65,0.30,0.30,g);
   /* 石阶三级通到门口 */
   for(let s=0;s<3;s++)_lmBox(1.0,0.16,0.5,LM.stone,0,0.08+s*0.16,0.9+s*0.45,g);
-  /* 竹丛：屋旁两侧密竹，高低错落 */
+  /* 竹丛：屋旁两侧密竹，秆粗矮、高低错落，叶簇蓬松上下相连，避免远景细杆顶球的棒棒糖观感 */
   const bx=[-1.4,-1.7,-1.1,-1.5,1.4,1.7,1.1,1.5,-1.9];
   for(let i=0;i<bx.length;i++){
-    const h=2.8+((i*37)%10)/10*1.1;
+    const h=1.6+((i*37)%10)/10*0.6;
     const bz=-0.5+(i%2*0.35);
-    const c=_lmCyl(0.05,0.06,h,5,LM.leaf,bx[i],h/2,bz,g);
-    c.rotation.z=(bx[i]>0?-1:1)*0.06;
-    _lmCluster(bx[i],h+0.05,bz,0.15,LM.leaf,g);
+    const c=_lmCyl(0.09,0.11,h,5,LM.leaf,bx[i],h/2,bz,g);
+    c.rotation.z=(bx[i]>0?-1:1)*0.07;
+    _lmCluster(bx[i],h+0.02,bz,0.26,LM.leaf,g);
+    _lmCluster(bx[i]-0.05,h*0.62,bz,0.18,LM.leaf,g);
+    _lmCluster(bx[i]+0.04,h*0.34,bz,0.13,LM.leaf,g);
   }
   /* 屋旁岩石 */
   _lmSph(0.30,LM.stone,-1.0,0.15,0.8,g);
@@ -1554,6 +1556,8 @@ function buildStiltHouse(){
   _lmCyl(0.06,0.07,0.90,5,LM.wood,-1.15,0.45,0.35,g);
   _lmBox(0.90,0.12,0.80,LM.wood,-1.15,0.92,0.35,g);
   _lmBox(0.70,0.60,0.65,LM.plaster,-1.15,1.22,0.35,g);
+  for(const px of [-1.42,-0.88])_lmBox(0.06,0.60,0.06,LM.wood,px,1.22,0.67,g);
+  _lmBox(0.70,0.06,0.06,LM.wood,-1.15,1.22,0.67,g);
   const ph1=_lmBox(0.50,0.08,0.85,LM.roof,-1.30,1.60,0.35,g);ph1.rotation.z=0.36;
   const ph2=_lmBox(0.50,0.08,0.85,LM.roof,-1.00,1.60,0.35,g);ph2.rotation.z=-0.36;
   _lmBox(0.08,0.08,0.85,LM.eaves,-1.15,1.66,0.35,g); /* 配亭屋脊 */
@@ -1569,6 +1573,9 @@ function buildTemple(){
   const g=new THREE.Group();
   /* 龛壁：深色后壁 + 左右岩壁向前围出龛口 */
   _lmBox(2.9,3.2,0.5,LM.stoneDark,-0.2,1.6,-0.55,g);
+  /* 龛壁横竖石缝分格，破除整面大白平板 */
+  for(const sx of [-1.15,-0.2,0.75])_lmBox(0.06,3.1,0.06,LM.arch,-0.2+sx,1.58,-0.28,g);
+  for(const hy of [1.05,2.15])_lmBox(2.8,0.06,0.06,LM.arch,-0.2,hy,-0.28,g);
   _lmBox(0.7,2.9,1.3,LM.stone,-1.75,1.45,-0.15,g);
   _lmBox(0.7,2.6,1.2,LM.stone,1.35,1.30,-0.2,g);
   /* 坐佛（居中偏左）：莲台 → 衣袍 → 肩胸 → 头 → 螺髻 */
@@ -1629,11 +1636,13 @@ function buildRuin(){
   /* 墙面残洞（深色凹块） */
   _lmBox(0.28,0.55,0.06,LM.arch,-1.20,1.30,0.86,g);
   _lmBox(0.24,0.40,0.06,LM.arch,0.15,0.80,0.92,g);
-  /* 墙顶薄雪覆面 */
-  _lmBox(1.72,0.06,0.42,LM.ruinSnow,-1.20,2.31,0,g);
-  _lmBox(1.32,0.06,0.38,LM.ruinSnow,0.15,1.41,0.25,g);
+  /* 墙顶薄雪覆面（冬季专属，随季节权重显隐） */
+  const wp=[];
+  wp.push(_lmBox(1.72,0.06,0.42,LM.ruinSnow,-1.20,2.31,0,g));
+  wp.push(_lmBox(1.32,0.06,0.38,LM.ruinSnow,0.15,1.41,0.25,g));
   /* 残墙顶下垂冰棱 */
-  for(let k=0;k<3;k++){const ic=_lmCone(0.03,0.16,5,LM.ruinSnow,-1.45+k*0.25,2.24,0.70,g);ic.rotation.x=Math.PI;}
+  for(let k=0;k<3;k++){const ic=_lmCone(0.03,0.16,5,LM.ruinSnow,-1.45+k*0.25,2.24,0.70,g);ic.rotation.x=Math.PI;wp.push(ic);}
+  g.userData.winterParts=wp;
   /* 乱石残骸堆：大小不一散落 */
   const rk=[[-0.50,0.20,0.70,0.34],[0.90,0.15,0.60,0.26],[-0.90,0.12,0.85,0.22],[0.40,0.12,0.85,0.18],[1.05,0.10,0.40,0.20],[-0.10,0.10,0.55,0.16]];
   for(const [x,y,z,r] of rk)_lmSph(r,LM.stoneDark,x,y,z,g);
@@ -1737,8 +1746,14 @@ const Eco={
       const ageF=t.age/5;
       if(t.mesh)t.mesh.scale.setScalar(t.baseScale*(0.82+0.18*ageF));
     }
-    /* 果林果实：仅秋季成熟显现 */
-    for(const fr of fruitMeshes)fr.visible=(season===3);
+    /* 果林果实：仅秋季成熟显现；挂果比例随跨年丰茂度增减 */
+    const fn=fruitMeshes.length;
+    for(let i=0;i<fn;i++){const fr=fruitMeshes[i];fr.visible=(season===3)&&(fn===0||i/fn<Math.max(0.35,this.richness));}
+    /* 丰茂度表现挂钩：草高与花丛体量随丰茂度轻微起伏（不增减实例数） */
+    const rm=this.richness;
+    if(typeof grass!=='undefined')grass.scale.y=0.85+0.30*rm;
+    if(typeof bgGrass!=='undefined')bgGrass.scale.y=0.85+0.30*rm;
+    if(typeof flowers!=='undefined')flowers.scale.setScalar(0.82+0.28*rm);
   }
 };
 Eco.load();
@@ -1834,12 +1849,14 @@ function zoneRock(ang,rad,s){
 }
 function buildReed(){
   const g=new THREE.Group();
+  const reedHeadGeo=new THREE.ConeGeometry(0.022,0.20,5);
   for(let k=0;k<5;k++){
     const h=rndRange(0.7,1.1);const x=(k-2)*0.06;
     const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.02,h,5),zoneReedMat);
     stem.position.set(x,h/2,0);g.add(stem);
-    const head=new THREE.Mesh(new THREE.SphereGeometry(0.05,6,5),zoneHeadMat);
-    head.position.set(x,h+0.05,0);g.add(head);
+    /* 芦花穗：细长下垂锥穗，不再用圆球顶冠，避免棒棒糖观感 */
+    const head=new THREE.Mesh(reedHeadGeo,zoneHeadMat);
+    head.position.set(x,h+0.09,0);head.rotation.z=rndRange(-0.12,0.12);g.add(head);
   }
   return g;
 }
@@ -2546,9 +2563,13 @@ function bgAnimalsUpdate(t,dt,w){
   }
 }
 function landmarksUpdate(w){
-  /* 地标常驻背景环，不再随季节权重淡出；季节明暗染色仍由材质循环处理 */
+  /* 地标常驻背景环，不再随季节权重淡出；季节明暗染色仍由材质循环处理。
+     冬季专属覆雪件（雪盖板/冰棱）按冬季权重显隐，避免春夏秋挂白盖 */
+  const winterOn=(w&&w[4])||0;
   for(const l of bgLandmarks){
     l.visible=true;
+    const wp=l.userData.winterParts;
+    if(wp)for(const p of wp)p.visible=winterOn>0.5;
   }
 }
 const folTint=[
@@ -4922,7 +4943,7 @@ scene.add(springProp,summerProp,autumnProp,winterProp);
 
 /* 盘内 3D 动物：秋狐 / 冬雀 / 夏蜓，实体形体带动作，不再用贴图精灵 */
 function makeShadow(){
-  const m=new THREE.Mesh(new THREE.CircleGeometry(0.24,18),dmk(0x141c2a,{opacity:0.26}));
+  const m=new THREE.Mesh(new THREE.CircleGeometry(0.24,18),dmk(0x141c2a,{opacity:0.30}));
   m.rotation.x=-Math.PI/2;m.position.y=0.02;m.renderOrder=1;return m;
 }
 function _bodyMesh(kind,bodyColor){
@@ -5195,7 +5216,7 @@ scene.add(catWhite.sprite,catBlack.sprite);
 /* 接触阴影 */
 function makeShadow(){
   const m=new THREE.Mesh(new THREE.CircleGeometry(0.44,20),
-    new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.38,depthWrite:false}));
+    new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.42,depthWrite:false}));
   m.rotation.x=-Math.PI/2;scene.add(m);return m;
 }
 const shadowW=makeShadow(),shadowB=makeShadow();
@@ -5387,7 +5408,7 @@ function sparkUpdate(dt,pAngle,running){
 }
 
 /* ===== 落地惊散粒子：春花瓣/夏流萤/秋籽/冬雪雾 ===== */
-const BURST_N=280;let burstCursor=0;
+const BURST_N=pc(280,130);let burstCursor=0;
 const bPos=new Float32Array(BURST_N*3),bVel=new Float32Array(BURST_N*3),
       bBirth=new Float32Array(BURST_N).fill(-10),bSize=new Float32Array(BURST_N),
       bCol=new Float32Array(BURST_N*3);
@@ -5670,8 +5691,8 @@ function animate(){
     dustMat.uniforms.uOpacity.value=0.55*(springW*0.8+w[2]*0.7);
     scene.fog.color.setHex(0x9fbcc7);
     scene.fog.near=27;scene.fog.far=74;
-    key.color.setRGB(1.0,0.96,0.86);key.intensity=1.62;
-    hemi.color.setRGB(0.86,0.91,0.87);hemi.groundColor.setRGB(0.34,0.36,0.27);hemi.intensity=1.06;
+    key.color.setRGB(1.0,0.96,0.86);key.intensity=1.66;
+    hemi.color.setRGB(0.88,0.92,0.88);hemi.groundColor.setRGB(0.42,0.35,0.26);hemi.intensity=1.12;
   }else{
     for(const bm of beamMats)bm.uniforms.uOpacity.value=0;
     dustMat.uniforms.uOpacity.value=0;
