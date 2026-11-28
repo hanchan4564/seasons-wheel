@@ -6194,6 +6194,8 @@ applyQuality(quality);
     season=s;slot=0;
     load(started&&!paused);
   };
+  /* 环境声跟随：是否处于"有声播放"状态 */
+  window.__musicActive=function(){return started&&!muted&&!au.paused;};
   /* 时光暂停：淡出后暂停；恢复：淡入 */
   window.__musicSync=function(p){
     if(p){if(!au.paused)fadeTo(0,320,function(){au.pause();paintState();});}
@@ -6203,6 +6205,132 @@ applyQuality(quality);
     paintState();
   };
   paintList();paintState();
+})();
+
+/* ===== 环境声分层：WebAudio 程序合成风/草沙/水/鸟鸣/虫吟/鸭叫，跟随音乐开关与季节时段联动 ===== */
+(function(){
+  let ctx=null,master=null,windG=null,grassG=null,waterG=null,birdG=null,bugG=null,duckG=null;
+  let birdNext=0,bugNext=0,duckNext=0,ready=false;
+  function noiseBuffer(){
+    const len=2*ctx.sampleRate;
+    const b=ctx.createBuffer(1,len,ctx.sampleRate),d=b.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+    return b;
+  }
+  function ensure(){
+    if(ctx)return true;
+    try{
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC)return false;
+      ctx=new AC();
+      master=ctx.createGain();master.gain.value=0;master.connect(ctx.destination);
+      const nb=noiseBuffer();
+      // 底层·风：低通噪声 + 慢速起伏
+      const wsrc=ctx.createBufferSource();wsrc.buffer=nb;wsrc.loop=true;
+      const wf=ctx.createBiquadFilter();wf.type='lowpass';wf.frequency.value=420;
+      windG=ctx.createGain();windG.gain.value=0.4;
+      wsrc.connect(wf);wf.connect(windG);windG.connect(master);wsrc.start();
+      const lfo=ctx.createOscillator();lfo.frequency.value=0.13;
+      const lfoG=ctx.createGain();lfoG.gain.value=0.16;
+      lfo.connect(lfoG);lfoG.connect(windG.gain);lfo.start();
+      // 底层·草沙：高通细碎噪声
+      const gsrc=ctx.createBufferSource();gsrc.buffer=nb;gsrc.loop=true;
+      const gf=ctx.createBiquadFilter();gf.type='highpass';gf.frequency.value=2600;
+      grassG=ctx.createGain();grassG.gain.value=0.1;
+      gsrc.connect(gf);gf.connect(grassG);grassG.connect(master);gsrc.start();
+      // 细节·水流：带通循环噪声
+      const rsrc=ctx.createBufferSource();rsrc.buffer=nb;rsrc.loop=true;
+      const rf=ctx.createBiquadFilter();rf.type='bandpass';rf.frequency.value=900;rf.Q.value=0.6;
+      waterG=ctx.createGain();waterG.gain.value=0.12;
+      rsrc.connect(rf);rf.connect(waterG);waterG.connect(master);rsrc.start();
+      // 中层·鸟鸣 / 虫吟 / 鸭叫：瞬时短音总线
+      birdG=ctx.createGain();birdG.gain.value=0;birdG.connect(master);
+      bugG=ctx.createGain();bugG.gain.value=0;bugG.connect(master);
+      duckG=ctx.createGain();duckG.gain.value=0;duckG.connect(master);
+      ready=true;
+    }catch(e){ctx=null;return false;}
+    return true;
+  }
+  /* 鸟鸣：2–3 个下滑短啁啾 */
+  function chirp(){
+    if(!ctx)return;const t=ctx.currentTime;
+    const n=2+Math.floor(Math.random()*2);
+    for(let k=0;k<n;k++){
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      const f=2600+Math.random()*1800,st=t+k*0.11;
+      o.type='sine';
+      o.frequency.setValueAtTime(f,st);
+      o.frequency.exponentialRampToValueAtTime(f*0.68,st+0.1);
+      g.gain.setValueAtTime(0,st);
+      g.gain.linearRampToValueAtTime(0.4,st+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001,st+0.14);
+      o.connect(g);g.connect(birdG);o.start(st);o.stop(st+0.16);
+    }
+  }
+  /* 虫吟：高频脉冲串 */
+  function bugChirp(){
+    if(!ctx)return;const t=ctx.currentTime;
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type='square';o.frequency.value=4200+Math.random()*1400;
+    const pulses=4+Math.floor(Math.random()*3);
+    g.gain.setValueAtTime(0,t);
+    for(let k=0;k<pulses;k++){
+      const st=t+k*0.07;
+      g.gain.linearRampToValueAtTime(0.16,st+0.015);
+      g.gain.linearRampToValueAtTime(0.001,st+0.05);
+    }
+    o.connect(g);g.connect(bugG);o.start(t);o.stop(t+pulses*0.07+0.05);
+  }
+  /* 鸭叫：两声低频短促 */
+  function duckQuack(){
+    if(!ctx)return;const t=ctx.currentTime;
+    for(let k=0;k<2;k++){
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      const st=t+k*0.18;
+      o.type='sawtooth';o.frequency.setValueAtTime(320,st);
+      o.frequency.exponentialRampToValueAtTime(180,st+0.12);
+      g.gain.setValueAtTime(0,st);
+      g.gain.linearRampToValueAtTime(0.3,st+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001,st+0.13);
+      o.connect(g);g.connect(duckG);o.start(st);o.stop(st+0.15);
+    }
+  }
+  function refresh(){
+    if(!ready)return;
+    const active=(window.__musicActive?window.__musicActive():false)&&!paused;
+    const dl=dayLightCurve(dayT);
+    const isNight=dayT<0.15||dayT>0.85;
+    const isDawn=dayT>=0.15&&dayT<0.35;
+    const s=curSeasonIdx; // 1春 2夏 3秋 4冬
+    const now=performance.now()/1000;
+    const ramp=(g,v)=>{g.gain.setTargetAtTime(v,ctx.currentTime,0.4);};
+    ramp(master,active?0.55:0);
+    // 风：冬夜略大，盛夏偏静
+    const windBase=(s===4?0.5:s===2?0.26:s===1?0.36:0.36)*(0.9+0.25*(1-dl));
+    ramp(windG,windBase);
+    ramp(grassG,0.10*dl+0.02);
+    ramp(waterG,s===4?0.05:0.12);
+    // 鸟鸣：晨昼为主，春秋多、冬寂；夜无鸟
+    let birdW=(s===1?0.8:s===2?0.5:s===3?0.7:0.15);
+    birdW*=isNight?0:(isDawn?1:0.7);
+    ramp(birdG,birdW*0.5);
+    // 虫吟：夜与夏盛，冬无虫；昼轻
+    let bugW=(s===2?0.8:s===1?0.25:s===3?0.3:0);
+    bugW*=isNight?1:(isDawn?0.4:0.15);
+    ramp(bugG,bugW*0.5);
+    // 鸭叫：春夏昼间偶发
+    let duckW=(s===1?0.5:s===2?0.4:s===3?0.15:0);
+    duckW*=isNight?0:1;
+    ramp(duckG,duckW*0.4);
+    // 调度瞬时短音
+    if(active&&birdW>0.1&&now>=birdNext){chirp();birdNext=now+1.5+Math.random()*3;}
+    if(active&&bugW>0.1&&now>=bugNext){bugChirp();bugNext=now+0.8+Math.random()*1.6;}
+    if(active&&duckW>0.1&&now>=duckNext){duckQuack();duckNext=now+8+Math.random()*9;}
+  }
+  function unlock(){if(ensure()&&ctx.state==='suspended')ctx.resume();}
+  document.addEventListener('pointerdown',unlock,{once:false});
+  document.addEventListener('keydown',unlock,{once:false});
+  setInterval(refresh,250);
 })();
 
 /* ===== 启动 ===== */
