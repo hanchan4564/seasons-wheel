@@ -1855,10 +1855,7 @@ function buildReed(){
       ridge.position.set(p.x,0.08,p.z);ridge.rotation.y=-(a+Math.PI/2);ridge.receiveShadow=true;
       bgGroup.add(ridge);
       const seed=ri*10+k+1;
-      const plot=Eco.addPlot(a,rr,seed);
-      const sprout=makeSprout(seed);
-      sprout.position.set(p.x,0.05,p.z);
-      bgGroup.add(sprout);plot.group=sprout;
+      Eco.addPlot(a,rr,seed); /* 苗丛已移除：仅保留土垄耕作痕迹，不再挂作物苗 */
     }
   }
   const path=new THREE.Mesh(new THREE.PlaneGeometry(2.8,0.5).rotateX(-Math.PI/2),zonePathMat);
@@ -3942,29 +3939,7 @@ const grassMat=new THREE.ShaderMaterial({
 const grass=new THREE.Mesh(grassGeo,grassMat);
 grass.frustumCulled=false;discGroup.add(grass);
 
-/* ===== 盘面近景菜畦：让耕作景象落在转盘可见区内（随盘旋转） ===== */
-(function innerField(){
-  const g=new THREE.Group();discGroup.add(g);
-  const c0=0.55;                                  /* 种植带中心角 */
-  const rows=[5.35,6.45,7.55];                   /* 三条垄半径 */
-  for(let ri=0;ri<rows.length;ri++){
-    const rr=rows[ri];const off=(ri-1)*0.14;
-    for(let k=0;k<4;k++){
-      const a=c0+off+(k-1.5)*0.30;
-      const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
-      const ridge=new THREE.Mesh(new THREE.BoxGeometry(0.70,0.22,0.40),zoneSoilMat);
-      ridge.position.set(x,0.11,z);ridge.rotation.y=-(a+Math.PI/2);
-      ridge.receiveShadow=true;g.add(ridge);
-      const sprout=makeSprout(ri*10+k+101);
-      sprout.position.set(x,0.12,z);sprout.scale.setScalar(1.22);g.add(sprout);
-    }
-  }
-  /* 垄间一条农人小道（弧带） */
-  const path=new THREE.Mesh(new THREE.PlaneGeometry(2.7,0.5).rotateX(-Math.PI/2),zonePathMat);
-  const pa=c0+0.10,pr=6.0;
-  path.position.set(Math.cos(pa)*pr,0.018,Math.sin(pa)*pr);
-  path.rotation.y=-(pa+Math.PI/2);g.add(path);
-})();
+/* 盘面近景菜畦苗垄已移除：棒棒糖造型苗与方板土板一并去掉，这片回归草地 */
 
 /* 盘外背景草：盘缘铺到远山，复用盘内同一套风动与季节着色 */
 const BG_BLADE=pc(55000,18000);
