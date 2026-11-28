@@ -1509,26 +1509,29 @@ placeLandmark(buildRuin(),4,LM_ANGLES[4],14.4);
 const ECO_KEY='sq_eco_v1';
 let _savedAngle=null;
 const Eco={
-  year:0,richness:0,plots:[],trees:[],_saveT:0,_lastSeason:0,
+  year:0,richness:0,plots:[],trees:[],firewood:1,villagers:[],_saveT:0,_lastSeason:0,
   load(){
     let raw=null;try{raw=JSON.parse(localStorage.getItem(ECO_KEY)||'null');}catch(e){}
     if(raw&&typeof raw==='object'){
       this.year=raw.year||0;this.richness=raw.richness||0;
       this.plots=Array.isArray(raw.plots)?raw.plots:[];
       this.trees=Array.isArray(raw.trees)?raw.trees:[];
+      this.firewood=typeof raw.firewood==='number'?raw.firewood:1;
+      this.villagers=Array.isArray(raw.villagers)?raw.villagers:[];
       if(typeof raw.totalAngle==='number')_savedAngle=raw.totalAngle;
     }
   },
   save(){
     try{
       localStorage.setItem(ECO_KEY,JSON.stringify({
-        totalAngle:totalAngle,year:this.year,richness:this.richness,
+        totalAngle:totalAngle,year:this.year,richness:this.richness,firewood:this.firewood,
+        villagers:this.villagers,
         plots:this.plots.map(p=>({id:p.id,ang:p.ang,rad:p.rad,fert:p.fert,crop:p.crop,stage:p.stage,rest:p.rest,seed:p.seed})),
         trees:this.trees.map(t=>({id:t.id,age:t.age,seed:t.seed}))
       }));
     }catch(e){}
   },
-  reset(){try{localStorage.removeItem(ECO_KEY);}catch(e){}this.plots=[];this.trees=[];this.year=0;this.richness=0;},
+  reset(){try{localStorage.removeItem(ECO_KEY);}catch(e){}this.plots=[];this.trees=[];this.year=0;this.richness=0;this.firewood=1;this.villagers=[];},
   addPlot(ang,rad,seed){
     let p=this.plots.find(x=>x.seed===seed);
     if(!p){
@@ -1723,6 +1726,8 @@ function buildReed(){
   const log=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.34,0.4),zoneSoilMat);
   const lp=_zp(c-0.55,14.6);log.position.set(lp.x,0.17,lp.z);log.rotation.y=-c;bgGroup.add(log);
   firewoodPile=log;
+  const fw=Math.max(0.4,Math.min(1,Eco.firewood));
+  firewoodPile.scale.set(fw,fw*0.86,fw);
 })();
 /* 水塘：溪岸石 + 芦苇丛 */
 (function pondZone(){
@@ -1886,15 +1891,20 @@ function smokeUpdate(t){
 }
 /* 田间农人：简笔几何小人，常驻四季，持锄站立 / 弯腰劳作，带轻微起伏 */
 const bgFarmers=[];
-/* 六名农人不同衣裳配色与身高：青布 / 棕褐 / 灰蓝 / 土黄 / 暗红 / 靛青 */
+/* 六名农人不同衣裳配色：青布 / 棕褐 / 灰蓝 / 土黄 / 暗红 / 靛青（低饱和田园色） */
 const FARM_OUTFITS=[
-  {cloth:0x7a8a5a,hat:0xc9a86a},{cloth:0x8a6a44,hat:0xc9a86a},
-  {cloth:0x6a7a8a,hat:0xb8a06a},{cloth:0xa88a4a,hat:0xc9a86a},
-  {cloth:0x8a4a44,hat:0xb8a06a},{cloth:0x5a5a7a,hat:0xc9a86a}
+  {cloth:0x5f6e4c,pants:0x4a4238,hat:0xcbb27a},{cloth:0x7a5a3a,pants:0x453a30,hat:0xcbb27a},
+  {cloth:0x52657a,pants:0x3c424c,hat:0xbfa876},{cloth:0x96763a,pants:0x4c4234,hat:0xcbb27a},
+  {cloth:0x7a3f38,pants:0x463a34,hat:0xbfa876},{cloth:0x4a4c6e,pants:0x383a4c,hat:0xcbb27a}
 ];
-const FARM_SKIN=new THREE.MeshLambertMaterial({color:0xd9b08a,fog:false});
+const FARM_SKIN=new THREE.MeshLambertMaterial({color:0xdfb58e,fog:false});
 const FARM_TOOL=new THREE.MeshLambertMaterial({color:0x6e4f33,fog:false});
-const farmArmGeo=new THREE.CylinderGeometry(0.028,0.028,0.26,5);
+const FARM_EYE=new THREE.MeshLambertMaterial({color:0x2a2118,fog:false});
+const farmArmGeo=new THREE.CylinderGeometry(0.028,0.026,0.24,5);
+const farmLegGeo=new THREE.CylinderGeometry(0.032,0.036,0.22,5);
+const farmShoeGeo=new THREE.BoxGeometry(0.07,0.05,0.11);
+const farmHandGeo=new THREE.SphereGeometry(0.03,6,5);
+const farmEyeGeo=new THREE.SphereGeometry(0.018,6,5);
 /* 自治任务点：菜畦地块 / 果林 / 柴堆 / 屋门歇息 */
 function farmerTasks(){
   const tasks=[];
@@ -1922,22 +1932,42 @@ function scoreTask(tk,farmer,season){
 function makeFarmer(ang,rad,idx){
   const out=FARM_OUTFITS[idx%FARM_OUTFITS.length];
   const clothMat=new THREE.MeshLambertMaterial({color:out.cloth,fog:false});
+  const pantsMat=new THREE.MeshLambertMaterial({color:out.pants,fog:false});
   const hatMat=new THREE.MeshLambertMaterial({color:out.hat,fog:false});
   const h=new THREE.Group();
-  const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.11,0.30,4,8),clothMat);
-  body.position.y=0.42;
-  const head=new THREE.Mesh(new THREE.SphereGeometry(0.10,10,8),FARM_SKIN);
+  /* 腿与鞋 */
+  const legL=new THREE.Mesh(farmLegGeo,pantsMat);legL.position.set(-0.05,0.11,0);
+  const legR=new THREE.Mesh(farmLegGeo,pantsMat);legR.position.set(0.05,0.11,0);
+  const shoeL=new THREE.Mesh(farmShoeGeo,pantsMat);shoeL.position.set(-0.05,0.025,0.02);
+  const shoeR=new THREE.Mesh(farmShoeGeo,pantsMat);shoeR.position.set(0.05,0.025,0.02);
+  /* 躯干 + 腰带 */
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.11,0.26,4,8),clothMat);
+  body.position.y=0.46;
+  const belt=new THREE.Mesh(new THREE.BoxGeometry(0.21,0.05,0.21),pantsMat);
+  belt.position.y=0.38;
+  /* 手臂 + 手 */
+  const armL=new THREE.Mesh(farmArmGeo,clothMat);armL.position.set(-0.15,0.58,0);
+  const armR=new THREE.Mesh(farmArmGeo,clothMat);armR.position.set(0.15,0.58,0);
+  const handL=new THREE.Mesh(farmHandGeo,FARM_SKIN);handL.position.set(0,-0.12,0);armL.add(handL);
+  const handR=new THREE.Mesh(farmHandGeo,FARM_SKIN);handR.position.set(0,-0.12,0);armR.add(handR);
+  /* 头：眼睛 + 宽檐草帽随头转动 */
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.10,12,10),FARM_SKIN);
   head.position.y=0.78;
-  const hat=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.10,10),hatMat);
-  hat.position.y=0.88;
+  const eyeL=new THREE.Mesh(farmEyeGeo,FARM_EYE);eyeL.position.set(-0.035,0.01,0.085);
+  const eyeR=new THREE.Mesh(farmEyeGeo,FARM_EYE);eyeR.position.set(0.035,0.01,0.085);
+  const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.025,12),hatMat);
+  brim.position.y=0.08;
+  const hat=new THREE.Mesh(new THREE.ConeGeometry(0.11,0.10,12),hatMat);
+  hat.position.y=0.15;
+  head.add(eyeL,eyeR,brim,hat);
+  /* 农具 */
   const hoe=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.70,5),FARM_TOOL);
   hoe.position.set(0.16,0.45,0);hoe.rotation.z=0.35;
-  const armL=new THREE.Mesh(farmArmGeo,clothMat);armL.position.set(-0.15,0.56,0);
-  const armR=new THREE.Mesh(farmArmGeo,clothMat);armR.position.set(0.15,0.56,0);
-  h.add(body,head,hat,hoe,armL,armR);
+  h.add(legL,legR,shoeL,shoeR,body,belt,armL,armR,head,hoe);
   h.scale.setScalar(1.32*(0.96+(idx%3)*0.03));
   h.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);
-  h.userData={state:'idle',task:null,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,armL,armR};
+  const saved=Eco.villagers.find(v=>v.idx===idx)||{};
+  h.userData={state:'idle',task:null,idx,jobs:saved.jobs||0,seed:Math.random()*TAU,workT:0,workAcc:0,restT:0,walkPhase:0,body,head,hat,hoe,armL,armR};
   bgGroup.add(h);bgFarmers.push(h);
   return h;
 }
@@ -1947,13 +1977,22 @@ const FARMER_STARTS=[
   {ang:1.57,rad:14.7},{ang:3.66,rad:13.6},{ang:4.71,rad:14.0}
 ];
 FARMER_STARTS.forEach((s,i)=>makeFarmer(s.ang,s.rad,i));
-/* 劳作轻量回写：除草/灌溉回升地块肥力（L3 反馈到生态层） */
-function workBackwrite(task){
+/* 村民台账：累计劳作次数，纳入本地存档 */
+function bumpVillager(f){
+  const u=f.userData;u.jobs=(u.jobs||0)+1;
+  let v=Eco.villagers.find(x=>x.idx===u.idx);
+  if(!v){v={idx:u.idx,jobs:0};Eco.villagers.push(v);}
+  v.jobs=u.jobs;
+}
+/* 劳作轻量回写：除草回升肥力、砍柴缩减柴堆余量（L3 反馈到生态层） */
+function workBackwrite(task,farmer){
   if(task.plot&&task.kind==='weed')task.plot.fert=Math.min(1,task.plot.fert+0.04);
-  if(task.kind==='chop'&&firewoodPile){
-    const s=Math.max(0.4,firewoodPile.scale.x-0.06);
-    firewoodPile.scale.set(s,Math.max(0.3,firewoodPile.scale.y-0.05),s);
+  if(task.kind==='chop'){
+    Eco.firewood=Math.max(0.4,Eco.firewood-0.04);
+    const fw=Eco.firewood;
+    if(firewoodPile)firewoodPile.scale.set(fw,fw*0.86,fw);
   }
+  if(farmer)bumpVillager(farmer);
 }
 function farmersUpdate(t,dt,season){
   for(const f of bgFarmers){
@@ -2002,7 +2041,7 @@ function farmersUpdate(t,dt,season){
         u.hoe.rotation.z=0.35+swing*0.25;
         u.armL.rotation.x=0.5;u.armR.rotation.x=0.5;
       }
-      if(u.workAcc>2.0){u.workAcc=0;workBackwrite(u.task);}
+      if(u.workAcc>2.0){u.workAcc=0;workBackwrite(u.task,f);}
       if(u.workT>4.0){u.state='rest';u.restT=0;}
     }else if(u.state==='rest'){
       u.restT+=dt;
