@@ -1579,9 +1579,17 @@ const Eco={
       const ageF=t.age/5;
       if(t.mesh)t.mesh.scale.setScalar(t.baseScale*(0.82+0.18*ageF));
     }
+    /* 果林果实：仅秋季成熟显现 */
+    for(const fr of fruitMeshes)fr.visible=(season===3);
   }
 };
 Eco.load();
+/* 柴堆引用：砍柴劳作后逐次减小（环境反馈） */
+let firewoodPile=null;
+/* 果林果实：秋季成熟显现，其余季节藏起 */
+const fruitMeshes=[];
+const fruitMat=new THREE.MeshLambertMaterial({color:0xd9603a,fog:false});
+const fruitGeo=new THREE.SphereGeometry(0.07,6,5);
 /* 作物苗几何：单位高茎 + 冠球，株高由地块阶段拉伸 */
 const spStemGeo=new THREE.CylinderGeometry(0.018,0.024,1,5);
 const spHeadGeo=new THREE.SphereGeometry(1,6,5);
@@ -1698,6 +1706,14 @@ function buildReed(){
     const rr=i%2?14.0:15.4;
     const m=zoneTree(c+angs[i],rr,rndRange(1.9,2.4),'tree',false);
     const t=Eco.addTree(100+i);t.mesh=m;t.baseScale=m.scale.x||1;
+    /* 树冠周围挂少量果实 */
+    const px=Math.cos(c+angs[i])*rr,pz=Math.sin(c+angs[i])*rr;
+    for(let k=0;k<3;k++){
+      const fr=new THREE.Mesh(fruitGeo,fruitMat);
+      const fa=angs[i]+(k-1)*0.22,frr=rr+rndRange(0.25,0.55);
+      fr.position.set(Math.cos(c+fa)*frr,rndRange(1.5,2.1),Math.sin(c+fa)*frr);
+      bgGroup.add(fr);fruitMeshes.push(fr);
+    }
   }
 })();
 /* 宅院：院前篱笆两段 + 柴堆 */
@@ -1706,6 +1722,7 @@ function buildReed(){
   placeFence(c-0.30,13.6,1.8);placeFence(c+0.30,13.6,1.8);
   const log=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.34,0.4),zoneSoilMat);
   const lp=_zp(c-0.55,14.6);log.position.set(lp.x,0.17,lp.z);log.rotation.y=-c;bgGroup.add(log);
+  firewoodPile=log;
 })();
 /* 水塘：溪岸石 + 芦苇丛 */
 (function pondZone(){
@@ -1933,6 +1950,10 @@ FARMER_STARTS.forEach((s,i)=>makeFarmer(s.ang,s.rad,i));
 /* 劳作轻量回写：除草/灌溉回升地块肥力（L3 反馈到生态层） */
 function workBackwrite(task){
   if(task.plot&&task.kind==='weed')task.plot.fert=Math.min(1,task.plot.fert+0.04);
+  if(task.kind==='chop'&&firewoodPile){
+    const s=Math.max(0.4,firewoodPile.scale.x-0.06);
+    firewoodPile.scale.set(s,Math.max(0.3,firewoodPile.scale.y-0.05),s);
+  }
 }
 function farmersUpdate(t,dt,season){
   for(const f of bgFarmers){
